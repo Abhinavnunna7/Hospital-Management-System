@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CarePulse | Hospital Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Authentication Modal (Sign In / Register) -->
+    <div id="login-modal" class="modal-overlay">
+        <div class="glass-card login-card">
+            <div class="brand-header" style="text-align: center; margin-bottom: 24px;">
+                <div style="font-size: 38px; color: var(--accent-cyan); margin-bottom: 8px;">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                </div>
+                <h2>CarePulse HMS</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Enterprise Clinical & Hospital System</p>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.25); padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+                <button type="button" id="tab-login" class="btn btn-xs" style="flex: 1; background: var(--primary); color: #fff;">Sign In</button>
+                <button type="button" id="tab-register" class="btn btn-xs" style="flex: 1; background: transparent; color: var(--text-secondary);">Register</button>
+            </div>
+
+            <!-- Sign In Form -->
+            <form id="login-form">
+                <div class="input-group">
+                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="login-username" required placeholder="Enter username" autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <label><i class="fa-solid fa-lock"></i> Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 8px;">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="hidden">
+                <div class="input-group">
+                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="reg-username" required placeholder="Choose username">
+                </div>
+                <div class="input-group">
+                    <label><i class="fa-solid fa-envelope"></i> Email</label>
+                    <input type="email" id="reg-email" required placeholder="name@hospital.com">
+                </div>
+                <div class="input-group">
+                    <label><i class="fa-solid fa-lock"></i> Password</label>
+                    <input type="password" id="reg-password" required placeholder="Create strong password">
+                </div>
+                <div class="input-group">
+                    <label><i class="fa-solid fa-id-badge"></i> System Role</label>
+                    <select id="reg-role" required>
+                        <option value="RECEPTIONIST">Receptionist</option>
+                        <option value="DOCTOR">Doctor</option>
+                        <option value="NURSE">Nurse</option>
+                        <option value="LAB_TECHNICIAN">Lab Technician</option>
+                        <option value="ACCOUNTANT">Accountant</option>
+                        <option value="ADMIN">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" style="background: linear-gradient(135deg, var(--accent-cyan), var(--primary)); margin-top: 8px;">
+                    <i class="fa-solid fa-user-plus"></i> Create Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Dashboard Shell -->
+    <div id="app-container" class="app-layout hidden">
+        <!-- Sidebar Navigation -->
+        <aside id="app-sidebar" class="sidebar">
+            <div class="sidebar-brand">
+                <i class="fa-solid fa-heart-pulse"></i>
+                <div class="brand-text">
+                    <h3>CarePulse</h3>
+                    <span>HMS Enterprise</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-view="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> <span>Overview</span>
+                </button>
+                <button class="nav-item" data-view="beds">
+                    <i class="fa-solid fa-bed-pulse"></i> <span>Ward & Beds</span>
+                </button>
+                <button class="nav-item" data-view="admissions">
+                    <i class="fa-solid fa-hospital-user"></i> <span>Admissions (IPD)</span>
+                </button>
+                <button class="nav-item" data-view="lab">
+                    <i class="fa-solid fa-flask-vial"></i> <span>Diagnostic Lab</span>
+                </button>
+                <button class="nav-item" data-view="mar">
+                    <i class="fa-solid fa-pills"></i> <span>Medication (MAR)</span>
+                </button>
+                <button class="nav-item" data-view="ot">
+                    <i class="fa-solid fa-syringe"></i> <span>OT Suite</span>
+                </button>
+                <button class="nav-item" data-view="billing">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> <span>Billing & Payments</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <div class="user-avatar" id="user-avatar-initial">A</div>
+                    <div class="user-details">
+                        <span id="user-name-display" class="user-name">Admin</span>
+                        <span id="user-role-badge" class="badge badge-admin">ADMIN</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="btn-logout" title="Sign Out">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Wrapper -->
+        <main class="main-wrapper">
+            <header class="top-header">
+                <div class="header-left">
+                    <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" title="Toggle Navigation">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div class="header-title">
+                        <h2 id="view-title">Hospital Overview</h2>
+                        <span id="view-subtitle" class="view-subtitle">Live hospital status & telemetry</span>
+                    </div>
+                </div>
+                <div class="system-status-chip">
+                    <span class="pulse-dot"></span> System Live (Port 8081)
+                </div>
+            </header>
+
+            <section id="main-content" class="content-body"></section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
