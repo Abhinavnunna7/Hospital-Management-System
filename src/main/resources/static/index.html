@@ -14,32 +14,32 @@
 
     <!-- Authentication Modal (Sign In / Register) -->
     <div id="login-modal" class="modal-overlay">
-        <div class="glass-card login-card">
+        <div class="ui-card login-card">
             <div class="brand-header" style="text-align: center; margin-bottom: 24px;">
-                <div style="font-size: 38px; color: var(--accent-cyan); margin-bottom: 8px;">
+                <div style="font-size: 38px; color: var(--accent-primary); margin-bottom: 8px;">
                     <i class="fa-solid fa-heart-pulse"></i>
                 </div>
                 <h2>CarePulse HMS</h2>
-                <p style="color: var(--text-secondary); font-size: 13px; margin-top: 4px;">Enterprise Clinical & Hospital System</p>
+                <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Enterprise Clinical & Hospital System</p>
             </div>
 
             <!-- Tab Switcher -->
-            <div style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.25); padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
-                <button type="button" id="tab-login" class="btn btn-xs" style="flex: 1; background: var(--primary); color: #fff;">Sign In</button>
-                <button type="button" id="tab-register" class="btn btn-xs" style="flex: 1; background: transparent; color: var(--text-secondary);">Register</button>
+            <div class="tab-switcher">
+                <button type="button" id="tab-login" class="btn btn-xs active-tab">Sign In</button>
+                <button type="button" id="tab-register" class="btn btn-xs inactive-tab">Register</button>
             </div>
 
             <!-- Sign In Form -->
             <form id="login-form">
                 <div class="input-group">
                     <label><i class="fa-solid fa-user"></i> Username</label>
-                    <input type="text" id="login-username" required placeholder="Enter username" autocomplete="username">
+                    <input type="text" id="login-username" class="ui-input" required placeholder="Enter username" autocomplete="username">
                 </div>
                 <div class="input-group">
                     <label><i class="fa-solid fa-lock"></i> Password</label>
-                    <input type="password" id="login-password" required placeholder="••••••••" autocomplete="current-password">
+                    <input type="password" id="login-password" class="ui-input" required placeholder="••••••••" autocomplete="current-password">
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 8px;">
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">
                     <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal
                 </button>
             </form>
@@ -48,28 +48,29 @@
             <form id="register-form" class="hidden">
                 <div class="input-group">
                     <label><i class="fa-solid fa-user"></i> Username</label>
-                    <input type="text" id="reg-username" required placeholder="Choose username">
+                    <input type="text" id="reg-username" class="ui-input" required placeholder="Choose username">
                 </div>
                 <div class="input-group">
                     <label><i class="fa-solid fa-envelope"></i> Email</label>
-                    <input type="email" id="reg-email" required placeholder="name@hospital.com">
+                    <input type="email" id="reg-email" class="ui-input" required placeholder="name@hospital.com">
                 </div>
                 <div class="input-group">
                     <label><i class="fa-solid fa-lock"></i> Password</label>
-                    <input type="password" id="reg-password" required placeholder="Create strong password">
+                    <input type="password" id="reg-password" class="ui-input" required placeholder="Create strong password">
                 </div>
                 <div class="input-group">
                     <label><i class="fa-solid fa-id-badge"></i> System Role</label>
-                    <select id="reg-role" required>
+                    <select id="reg-role" class="ui-input" required>
                         <option value="RECEPTIONIST">Receptionist</option>
                         <option value="DOCTOR">Doctor</option>
                         <option value="NURSE">Nurse</option>
                         <option value="LAB_TECHNICIAN">Lab Technician</option>
                         <option value="ACCOUNTANT">Accountant</option>
                         <option value="ADMIN">Admin</option>
+                        <option value="PATIENT">Patient (Self-Service)</option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" style="background: linear-gradient(135deg, var(--accent-cyan), var(--primary)); margin-top: 8px;">
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">
                     <i class="fa-solid fa-user-plus"></i> Create Account
                 </button>
             </form>
@@ -81,7 +82,7 @@
         <!-- Sidebar Navigation -->
         <aside id="app-sidebar" class="sidebar">
             <div class="sidebar-brand">
-                <i class="fa-solid fa-heart-pulse"></i>
+                <i class="fa-solid fa-heart-pulse logo-icon"></i>
                 <div class="brand-text">
                     <h3>CarePulse</h3>
                     <span>HMS Enterprise</span>
@@ -91,6 +92,9 @@
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-view="dashboard">
                     <i class="fa-solid fa-chart-pie"></i> <span>Overview</span>
+                </button>
+                <button class="nav-item" data-view="patients">
+                    <i class="fa-solid fa-address-book"></i> <span>Patient Registry</span>
                 </button>
                 <button class="nav-item" data-view="beds">
                     <i class="fa-solid fa-bed-pulse"></i> <span>Ward & Beds</span>
@@ -120,7 +124,7 @@
                         <span id="user-role-badge" class="badge badge-admin">ADMIN</span>
                     </div>
                 </div>
-                <button id="logout-btn" class="btn-logout" title="Sign Out">
+                <button id="logout-btn" class="btn btn-xs btn-danger-subtle" title="Sign Out">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
             </div>
@@ -130,16 +134,13 @@
         <main class="main-wrapper">
             <header class="top-header">
                 <div class="header-left">
-                    <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" title="Toggle Navigation">
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
                     <div class="header-title">
                         <h2 id="view-title">Hospital Overview</h2>
                         <span id="view-subtitle" class="view-subtitle">Live hospital status & telemetry</span>
                     </div>
                 </div>
                 <div class="system-status-chip">
-                    <span class="pulse-dot"></span> System Live (Port 8081)
+                    <span class="pulse-dot"></span> System Live (Port 8080)
                 </div>
             </header>
 
