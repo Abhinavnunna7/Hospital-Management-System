@@ -8,49 +8,35 @@ const state = {
     currentView: 'dashboard'
 };
 
-// Centralized Secure API Fetch Client
 async function authFetch(endpoint, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
         ...(options.headers || {})
     };
-
-    if (state.token) {
-        headers['Authorization'] = `Bearer ${state.token}`;
-    }
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
 
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers
-        });
-
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, { ...options, headers });
         if (response.status === 401) {
             showToast('Session expired. Please sign in.', 'error');
             handleLogout();
             throw new Error('Unauthorized');
         }
-
         if (response.status === 403) {
-            showToast('Access Denied: Your role is not authorized for this operation.', 'error');
+            showToast('Access Denied.', 'error');
             throw new Error('Forbidden');
         }
-
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
             throw new Error(errorData.message || `HTTP ${response.status}`);
         }
-
         return await response.json().catch(() => null);
     } catch (error) {
-        if (error.message !== 'Unauthorized' && error.message !== 'Forbidden') {
-            showToast(error.message, 'error');
-        }
+        if (error.message !== 'Unauthorized' && error.message !== 'Forbidden') showToast(error.message, 'error');
         throw error;
     }
 }
 
-// Toast Notifications
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -58,43 +44,29 @@ function showToast(message, type = 'info') {
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info'}"></i> ${message}`;
     container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
 }
 
-// Role-Based UI Filtering Rules
 function applyRoleBasedNavigation() {
     const role = state.role || '';
-    
-    // Matrix of permissions per role
     const permissions = {
-        ADMIN: ['dashboard', 'beds', 'admissions', 'lab', 'mar', 'ot', 'billing'],
-        DOCTOR: ['dashboard', 'beds', 'admissions', 'lab', 'mar', 'ot'],
-        NURSE: ['dashboard', 'beds', 'admissions', 'mar', 'ot'],
-        RECEPTIONIST: ['dashboard', 'beds', 'admissions'],
+        ADMIN: ['dashboard', 'patients', 'beds', 'admissions', 'lab', 'mar', 'ot', 'billing'],
+        RECEPTIONIST: ['dashboard', 'patients', 'beds', 'admissions'],
+        DOCTOR: ['dashboard', 'patients', 'beds', 'admissions', 'lab', 'mar', 'ot'],
+        NURSE: ['dashboard', 'patients', 'beds', 'admissions', 'mar', 'ot'],
         LAB_TECHNICIAN: ['dashboard', 'lab'],
-        ACCOUNTANT: ['dashboard', 'admissions', 'billing']
+        ACCOUNTANT: ['dashboard', 'patients', 'admissions', 'billing'],
+        PATIENT: ['dashboard', 'lab', 'billing']
     };
-
     const allowedViews = permissions[role] || ['dashboard'];
 
     document.querySelectorAll('.nav-item').forEach(button => {
         const view = button.getAttribute('data-view');
-        if (allowedViews.includes(view)) {
-            button.classList.remove('hidden');
-        } else {
-            button.classList.add('hidden');
-        }
+        button.classList.toggle('hidden', !allowedViews.includes(view));
     });
-
-    if (!allowedViews.includes(state.currentView)) {
-        state.currentView = allowedViews[0];
-    }
+    if (!allowedViews.includes(state.currentView)) state.currentView = allowedViews[0];
 }
 
-// Auth Lifecycle & UI State
 function checkAuthState() {
     const loginModal = document.getElementById('login-modal');
     const appContainer = document.getElementById('app-container');
@@ -118,7 +90,7 @@ function checkAuthState() {
     }
 }
 
-// Auth Tab Switching
+// Auth Tabs Switcher
 const tabLogin = document.getElementById('tab-login');
 const tabRegister = document.getElementById('tab-register');
 const loginForm = document.getElementById('login-form');
@@ -126,117 +98,78 @@ const registerForm = document.getElementById('register-form');
 
 if (tabLogin && tabRegister) {
     tabLogin.addEventListener('click', () => {
-        tabLogin.style.background = 'var(--accent-blue)';
-        tabLogin.style.color = '#fff';
-        tabRegister.style.background = 'transparent';
-        tabRegister.style.color = 'var(--text-muted)';
-        loginForm.classList.remove('hidden');
-        registerForm.classList.add('hidden');
+        tabLogin.classList.add('active-tab'); tabRegister.classList.remove('active-tab');
+        loginForm.classList.remove('hidden'); registerForm.classList.add('hidden');
     });
-
     tabRegister.addEventListener('click', () => {
-        tabRegister.style.background = 'var(--accent-blue)';
-        tabRegister.style.color = '#fff';
-        tabLogin.style.background = 'transparent';
-        tabLogin.style.color = 'var(--text-muted)';
-        registerForm.classList.remove('hidden');
-        loginForm.classList.add('hidden');
+        tabRegister.classList.add('active-tab'); tabLogin.classList.remove('active-tab');
+        registerForm.classList.remove('hidden'); loginForm.classList.add('hidden');
     });
 }
 
-// Handle Sign In
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('login-username').value.trim();
-        const password = document.getElementById('login-password').value;
-
         try {
             const res = await fetch(`${API_BASE_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('login-username').value.trim(),
+                    password: document.getElementById('login-password').value
+                })
             });
-
-            if (!res.ok) {
-                throw new Error('Invalid credentials. Please verify your username and password.');
-            }
-
+            if (!res.ok) throw new Error('Invalid credentials.');
             const data = await res.json();
-            state.token = data.token;
-            state.username = data.username;
-            state.role = data.role;
-
+            state.token = data.token; state.username = data.username; state.role = data.role;
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', data.username);
             localStorage.setItem('role', data.role);
-
-            showToast(`Signed in as ${data.username} (${data.role})`, 'success');
+            showToast(`Signed in as ${data.username}`, 'success');
             checkAuthState();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
+        } catch (err) { showToast(err.message, 'error'); }
     });
 }
 
-// Handle User Registration
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const payload = {
-            username: document.getElementById('reg-username').value.trim(),
-            email: document.getElementById('reg-email').value.trim(),
-            password: document.getElementById('reg-password').value,
-            role: document.getElementById('reg-role').value
-        };
-
         try {
             const res = await fetch(`${API_BASE_URL}/users`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('reg-username').value.trim(),
+                    email: document.getElementById('reg-email').value.trim(),
+                    password: document.getElementById('reg-password').value,
+                    role: document.getElementById('reg-role').value
+                })
             });
-
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ message: 'Registration failed' }));
-                throw new Error(err.message || 'Registration failed');
-            }
-
-            showToast('Account registered successfully! Please sign in.', 'success');
-            registerForm.reset();
-            tabLogin.click();
-        } catch (err) {
-            showToast(err.message, 'error');
-        }
+            if (!res.ok) throw new Error('Registration failed.');
+            showToast('Account created. Please sign in.', 'success');
+            registerForm.reset(); tabLogin.click();
+        } catch (err) { showToast(err.message, 'error'); }
     });
 }
 
-// Handle Logout
 function handleLogout() {
-    state.token = null;
-    state.username = null;
-    state.role = null;
-    localStorage.clear();
-    checkAuthState();
+    state.token = null; state.username = null; state.role = null; localStorage.clear(); checkAuthState();
 }
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
-// View Router
 function loadView(viewName) {
     state.currentView = viewName;
-
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.getAttribute('data-view') === viewName);
     });
 
     const titleMap = {
         dashboard: { title: 'Hospital Telemetry', sub: 'Real-time census, inpatient load & system health' },
-        beds: { title: 'Ward & Bed Occupancy Matrix', sub: 'Infrastructure tracking, availability & state management' },
-        admissions: { title: 'Inpatient Admissions (IPD)', sub: 'Clinical check-in, physician assignment & discharge' },
-        lab: { title: 'Diagnostic Pathology & Radiology', sub: 'Test requisitions, workflow routing & clinical reports' },
-        mar: { title: 'Medication Administration Record (MAR)', sub: 'Physician multi-drug prescription & nurse dosage logs' },
-        ot: { title: 'Operation Theater Suite', sub: 'Surgical scheduling, room allocation & PACU notes' },
-        billing: { title: 'Inpatient Settlement & Invoicing', sub: 'Tariff aggregation, cash counter & live Razorpay checkout' }
+        patients: { title: 'Patient Registry & Directory', sub: 'Patient onboarding, demographic indexing & records' },
+        beds: { title: 'Ward & Bed Occupancy', sub: 'Infrastructure tracking & state management' },
+        admissions: { title: 'Inpatient Admissions (IPD)', sub: 'Clinical check-in, assignment & bed locking' },
+        lab: { title: 'Diagnostic Pathology', sub: 'Test requisitions & pathology reports' },
+        mar: { title: 'Medication Record (MAR)', sub: 'Multi-drug prescription & nurse dosage logs' },
+        ot: { title: 'Operation Theater Suite', sub: 'Surgical scheduling, room allocation & notes' },
+        billing: { title: 'Inpatient Billing & Payments', sub: 'Tariff aggregation, counter settle & checkout' }
     };
 
     const header = titleMap[viewName] || { title: 'Hospital Management', sub: 'CarePulse Enterprise' };
@@ -244,8 +177,8 @@ function loadView(viewName) {
     document.getElementById('view-subtitle').innerText = header.sub;
 
     const mainContent = document.getElementById('main-content');
-
     if (viewName === 'dashboard') renderDashboardOverview(mainContent);
+    else if (viewName === 'patients') renderPatientsView(mainContent);
     else if (viewName === 'beds') renderBedsView(mainContent);
     else if (viewName === 'admissions') renderAdmissionsView(mainContent);
     else if (viewName === 'lab') renderLabView(mainContent);
@@ -255,36 +188,190 @@ function loadView(viewName) {
 }
 
 // ----------------------------------------------------
-// 1. Dashboard Overview View
+// 1. Dashboard Overview
 // ----------------------------------------------------
 async function renderDashboardOverview(container) {
     container.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-            <div class="glass-card" style="padding: 16px;">
-                <span style="color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700;">Available Beds</span>
-                <h3 id="stat-beds" style="font-size: 24px; margin-top: 6px; color: var(--accent-green);"><i class="fa-solid fa-spinner fa-spin"></i></h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+            <div class="ui-card" style="padding: 24px;">
+                <span style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; font-weight: 600;">Available Beds</span>
+                <h3 id="stat-beds" style="font-size: 30px; margin-top: 8px; color: var(--accent-green);"><i class="fa-solid fa-spinner fa-spin"></i></h3>
             </div>
-            <div class="glass-card" style="padding: 16px;">
-                <span style="color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700;">Active Inpatients</span>
-                <h3 id="stat-admissions" style="font-size: 24px; margin-top: 6px; color: var(--accent-blue);"><i class="fa-solid fa-spinner fa-spin"></i></h3>
+            <div class="ui-card" style="padding: 24px;">
+                <span style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; font-weight: 600;">Active Inpatients</span>
+                <h3 id="stat-admissions" style="font-size: 30px; margin-top: 8px; color: var(--accent-primary);"><i class="fa-solid fa-spinner fa-spin"></i></h3>
             </div>
-            <div class="glass-card" style="padding: 16px;">
-                <span style="color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700;">System Port</span>
-                <h3 style="font-size: 24px; margin-top: 6px; color: var(--accent-cyan);">8081 (ONLINE)</h3>
+            <div class="ui-card" style="padding: 24px;">
+                <span style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; font-weight: 600;">Registered Patients</span>
+                <h3 id="stat-patients" style="font-size: 30px; margin-top: 8px; color: var(--accent-purple);"><i class="fa-solid fa-spinner fa-spin"></i></h3>
+            </div>
+            <div class="ui-card" style="padding: 24px;">
+                <span style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; font-weight: 600;">System Status</span>
+                <h3 style="font-size: 24px; margin-top: 8px; color: var(--accent-cyan); font-weight: 700;">OPERATIONAL</h3>
             </div>
         </div>
     `;
-
     try {
-        const availableBeds = await authFetch('/infrastructure/beds/available');
-        const activeAdmissions = await authFetch('/admissions/active');
-        document.getElementById('stat-beds').innerText = availableBeds ? availableBeds.length : 0;
-        document.getElementById('stat-admissions').innerText = activeAdmissions ? activeAdmissions.length : 0;
+        const [beds, admissions, patients] = await Promise.all([
+            authFetch('/infrastructure/beds/available'),
+            authFetch('/admissions/active'),
+            authFetch('/patients')
+        ]);
+        document.getElementById('stat-beds').innerText = beds ? beds.length : 0;
+        document.getElementById('stat-admissions').innerText = admissions ? admissions.length : 0;
+        document.getElementById('stat-patients').innerText = patients ? patients.length : 0;
     } catch (e) {}
 }
 
 // ----------------------------------------------------
-// 2. Ward & Bed Occupancy Matrix View
+// 2. Patient Registry & Directory
+// ----------------------------------------------------
+async function renderPatientsView(container) {
+    const canRegister = state.role === 'ADMIN' || state.role === 'RECEPTIONIST';
+
+    container.innerHTML = `
+        <div class="view-grid-layout" style="${!canRegister ? 'grid-template-columns: 1fr;' : ''}">
+            ${canRegister ? `
+            <div class="ui-card panel-card">
+                <div class="panel-header">
+                    <h3><i class="fa-solid fa-user-plus"></i> Register Patient</h3>
+                </div>
+                <form id="register-patient-form">
+                    <div class="input-group">
+                        <label>Full Name</label>
+                        <input type="text" id="pat-fullname" class="ui-input" required placeholder="e.g. Rahul Sharma">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="input-group">
+                            <label>Age</label>
+                            <input type="number" id="pat-age" class="ui-input" min="0" max="130" required placeholder="32">
+                        </div>
+                        <div class="input-group">
+                            <label>Gender</label>
+                            <select id="pat-gender" class="ui-input" required>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="input-group">
+                            <label>Blood Group</label>
+                            <select id="pat-blood" class="ui-input" required>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Phone Number</label>
+                            <input type="tel" id="pat-phone" class="ui-input" required placeholder="9876543210">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Address</label>
+                        <textarea id="pat-address" class="ui-input" rows="2" placeholder="Street, City, State"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fa-solid fa-address-card"></i> Save & Generate Patient ID
+                    </button>
+                </form>
+            </div>
+            ` : ''}
+
+            <div class="ui-card panel-card">
+                <div class="panel-header">
+                    <h3><i class="fa-solid fa-users"></i> Patient Master Directory</h3>
+                    <button id="refresh-patients-btn" class="btn btn-xs" style="background: var(--bg-surface-hover); color: var(--text-main);">
+                        <i class="fa-solid fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+                <div class="data-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Patient ID</th>
+                                <th>Name</th>
+                                <th>Demographics</th>
+                                <th>Blood</th>
+                                <th>Phone</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patients-table-body">
+                            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading directory...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    async function loadPatientsTable() {
+        const tbody = document.getElementById('patients-table-body');
+        try {
+            const patients = await authFetch('/patients');
+            if (!patients || patients.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No patients registered yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = patients.map(p => `
+                <tr>
+                    <td><b style="color: var(--accent-primary);">#${p.id}</b></td>
+                    <td><span style="font-weight: 600;">${p.fullName}</span></td>
+                    <td>${p.age} yrs / ${p.gender}</td>
+                    <td><span class="badge badge-doctor">${p.bloodGroup || 'N/A'}</span></td>
+                    <td>${p.contactNumber}</td>
+                    <td>
+                        <button onclick="copyToClipboard('${p.id}')" class="btn btn-xs" style="background: var(--bg-surface-hover); color: var(--text-main);">
+                            <i class="fa-solid fa-copy"></i> Copy ID
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to load patient records.</td></tr>`;
+        }
+    }
+
+    if (canRegister) {
+        document.getElementById('register-patient-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const payload = {
+                fullName: document.getElementById('pat-fullname').value.trim(),
+                age: parseInt(document.getElementById('pat-age').value),
+                gender: document.getElementById('pat-gender').value,
+                bloodGroup: document.getElementById('pat-blood').value,
+                contactNumber: document.getElementById('pat-phone').value.trim(),
+                address: document.getElementById('pat-address').value.trim()
+            };
+
+            try {
+                const res = await authFetch('/patients', { method: 'POST', body: JSON.stringify(payload) });
+                showToast(`Patient registered! Assigned ID #${res.id}`, 'success');
+                document.getElementById('register-patient-form').reset();
+                loadPatientsTable();
+            } catch (err) {}
+        });
+    }
+
+    document.getElementById('refresh-patients-btn').addEventListener('click', loadPatientsTable);
+    loadPatientsTable();
+}
+
+window.copyToClipboard = function(text) {
+    navigator.clipboard.writeText(text);
+    showToast(`Patient ID #${text} copied to clipboard!`, 'info');
+};
+
+// ----------------------------------------------------
+// 3. Ward & Beds
 // ----------------------------------------------------
 async function renderBedsView(container) {
     const isAdmin = state.role === 'ADMIN';
@@ -292,48 +379,41 @@ async function renderBedsView(container) {
     container.innerHTML = `
         <div class="view-grid-layout" style="${!isAdmin ? 'grid-template-columns: 1fr;' : ''}">
             ${isAdmin ? `
-            <div class="panel-column" style="display: flex; flex-direction: column; gap: 12px;">
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-hospital"></i> Create Ward</h3>
-                    </div>
+            <div class="panel-column" style="display: flex; flex-direction: column; gap: 24px;">
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-hospital"></i> Create Ward</h3></div>
                     <form id="create-ward-form">
                         <div class="input-group">
                             <label>Ward Name</label>
-                            <input type="text" id="ward-name" required placeholder="e.g. ICU Wing A">
+                            <input type="text" id="ward-name" class="ui-input" required placeholder="e.g. ICU Wing A">
                         </div>
                         <div class="input-group">
                             <label>Category</label>
-                            <select id="ward-category" required>
-                                <option value="GENERAL">General Ward</option>
-                                <option value="ICU">ICU (Intensive Care)</option>
-                                <option value="PRIVATE">Private Suite</option>
+                            <select id="ward-category" class="ui-input" required>
+                                <option value="GENERAL">General</option>
+                                <option value="ICU">ICU</option>
+                                <option value="PRIVATE">Private</option>
                                 <option value="SEMI_PRIVATE">Semi-Private</option>
                                 <option value="EMERGENCY">Emergency</option>
                             </select>
                         </div>
                         <div class="input-group">
                             <label>Daily Tariff (₹)</label>
-                            <input type="number" id="ward-rate" min="1" step="1" required placeholder="2500">
+                            <input type="number" id="ward-rate" class="ui-input" min="1" step="1" required placeholder="2500">
                         </div>
                         <button type="submit" class="btn btn-primary btn-block">Register Ward</button>
                     </form>
                 </div>
-
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-bed"></i> Add Bed</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-bed"></i> Add Bed</h3></div>
                     <form id="add-bed-form">
                         <div class="input-group">
                             <label>Ward</label>
-                            <select id="bed-ward-select" required>
-                                <option value="">Loading wards...</option>
-                            </select>
+                            <select id="bed-ward-select" class="ui-input" required><option value="">Loading wards...</option></select>
                         </div>
                         <div class="input-group">
                             <label>Bed Number / Code</label>
-                            <input type="text" id="bed-number" required placeholder="e.g. ICU-01">
+                            <input type="text" id="bed-number" class="ui-input" required placeholder="e.g. ICU-01">
                         </div>
                         <button type="submit" class="btn btn-primary btn-block">Add Bed</button>
                     </form>
@@ -341,16 +421,12 @@ async function renderBedsView(container) {
             </div>
             ` : ''}
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
-                    <h3><i class="fa-solid fa-table-cells-large"></i> Bed Occupancy Matrix</h3>
-                    <button id="refresh-beds-btn" class="btn btn-xs" style="background: rgba(255,255,255,0.05); color: var(--text-main);">
-                        <i class="fa-solid fa-rotate-right"></i> Refresh
-                    </button>
+                    <h3><i class="fa-solid fa-table-cells-large"></i> Bed Matrix</h3>
+                    <button id="refresh-beds-btn" class="btn btn-xs" style="background: var(--bg-surface-hover); color: var(--text-main);"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
                 </div>
-                <div id="beds-container" class="beds-grid">
-                    <div style="color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading beds...</div>
-                </div>
+                <div id="beds-container" class="beds-grid"><div style="color: var(--text-muted);">Loading beds...</div></div>
             </div>
         </div>
     `;
@@ -360,153 +436,92 @@ async function renderBedsView(container) {
         const select = document.getElementById('bed-ward-select');
         try {
             const wards = await authFetch('/infrastructure/wards');
-            select.innerHTML = wards && wards.length > 0 
-                ? wards.map(w => `<option value="${w.id}">${w.name} (${w.category} - ₹${w.dailyRate}/day)</option>`).join('')
-                : `<option value="">No wards found. Create one above.</option>`;
-        } catch (e) {
-            select.innerHTML = `<option value="">Error loading wards</option>`;
-        }
+            select.innerHTML = wards && wards.length > 0 ? wards.map(w => `<option value="${w.id}">${w.name} (₹${w.dailyRate})</option>`).join('') : `<option value="">No wards found.</option>`;
+        } catch (e) { select.innerHTML = `<option value="">Error loading</option>`; }
     }
 
     async function loadBedsGrid() {
         const grid = document.getElementById('beds-container');
         try {
-            const availableBeds = await authFetch('/infrastructure/beds/available');
-            if (!availableBeds || availableBeds.length === 0) {
-                grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px;">No beds available in pool.</div>`;
-                return;
-            }
-            grid.innerHTML = availableBeds.map(b => `
+            const beds = await authFetch('/infrastructure/beds/available');
+            if (!beds || beds.length === 0) { grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 30px;">No available beds.</div>`; return; }
+            grid.innerHTML = beds.map(b => `
                 <div class="bed-card ${b.status.toLowerCase()}">
-                    <div class="bed-header">
-                        <span class="bed-title">${b.bedNumber}</span>
-                        <span class="badge badge-nurse">${b.status}</span>
-                    </div>
-                    <div class="bed-ward">${b.wardName} (${b.wardCategory})</div>
+                    <div class="bed-header"><span class="bed-title">${b.bedNumber}</span><span class="badge badge-nurse">${b.status}</span></div>
+                    <div class="bed-ward">${b.wardName}</div>
                     <div class="bed-price">₹${b.dailyRate} / day</div>
-                    ${(state.role === 'ADMIN' || state.role === 'NURSE') ? `
-                        <button onclick="toggleBedStatus(${b.id}, 'UNDER_MAINTENANCE')" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); margin-top: 4px;">
-                            <i class="fa-solid fa-wrench"></i> Maintenance
-                        </button>
-                    ` : ''}
+                    ${(state.role === 'ADMIN' || state.role === 'NURSE') ? `<button onclick="toggleBedStatus(${b.id}, 'UNDER_MAINTENANCE')" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber); margin-top: 8px;">Maintenance</button>` : ''}
                 </div>
             `).join('');
-        } catch (e) {
-            grid.innerHTML = `<div style="color: var(--accent-rose);">Failed to load beds.</div>`;
-        }
+        } catch (e) { grid.innerHTML = `<div style="color: var(--accent-rose);">Failed to load.</div>`; }
     }
 
     if (isAdmin) {
         document.getElementById('create-ward-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const rate = parseFloat(document.getElementById('ward-rate').value);
-            if (rate <= 0 || isNaN(rate)) {
-                showToast('Tariff must be greater than zero.', 'error');
-                return;
-            }
-            const payload = {
-                name: document.getElementById('ward-name').value.trim(),
-                category: document.getElementById('ward-category').value,
-                dailyRate: rate
-            };
             try {
-                await authFetch('/infrastructure/wards', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('Ward created successfully!', 'success');
-                document.getElementById('create-ward-form').reset();
-                loadWardsDropdown();
+                await authFetch('/infrastructure/wards', { method: 'POST', body: JSON.stringify({ name: document.getElementById('ward-name').value.trim(), category: document.getElementById('ward-category').value, dailyRate: parseFloat(document.getElementById('ward-rate').value) }) });
+                showToast('Ward created!', 'success'); document.getElementById('create-ward-form').reset(); loadWardsDropdown();
             } catch (err) {}
         });
-
         document.getElementById('add-bed-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const payload = {
-                wardId: parseInt(document.getElementById('bed-ward-select').value),
-                bedNumber: document.getElementById('bed-number').value.trim()
-            };
             try {
-                await authFetch('/infrastructure/beds', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('Bed added successfully!', 'success');
-                document.getElementById('bed-number').value = '';
-                loadBedsGrid();
+                await authFetch('/infrastructure/beds', { method: 'POST', body: JSON.stringify({ wardId: parseInt(document.getElementById('bed-ward-select').value), bedNumber: document.getElementById('bed-number').value.trim() }) });
+                showToast('Bed added!', 'success'); document.getElementById('bed-number').value = ''; loadBedsGrid();
             } catch (err) {}
         });
     }
 
     document.getElementById('refresh-beds-btn').addEventListener('click', loadBedsGrid);
-    loadWardsDropdown();
-    loadBedsGrid();
+    loadWardsDropdown(); loadBedsGrid();
 }
 
 window.toggleBedStatus = async function(bedId, status) {
-    try {
-        await authFetch(`/infrastructure/beds/${bedId}/status?status=${status}`, { method: 'PATCH' });
-        showToast(`Bed state updated to ${status}`, 'success');
-        loadView('beds');
-    } catch (err) {}
+    try { await authFetch(`/infrastructure/beds/${bedId}/status?status=${status}`, { method: 'PATCH' }); showToast(`Bed status updated.`, 'success'); loadView('beds'); } catch (err) {}
 };
 
 // ----------------------------------------------------
-// 3. Inpatient Admissions (IPD) View
+// 4. Inpatient Admissions (IPD)
 // ----------------------------------------------------
 async function renderAdmissionsView(container) {
     const canAdmit = state.role === 'ADMIN' || state.role === 'RECEPTIONIST';
-
     container.innerHTML = `
         <div class="view-grid-layout" style="${!canAdmit ? 'grid-template-columns: 1fr;' : ''}">
             ${canAdmit ? `
-            <div class="glass-card panel-card">
-                <div class="panel-header">
-                    <h3><i class="fa-solid fa-user-plus"></i> Inpatient Admission</h3>
-                </div>
+            <div class="ui-card panel-card">
+                <div class="panel-header"><h3><i class="fa-solid fa-user-plus"></i> Inpatient Admission</h3></div>
                 <form id="admit-patient-form">
                     <div class="input-group">
-                        <label>Patient ID</label>
-                        <input type="number" id="admit-patient-id" min="1" required placeholder="Patient ID (e.g. 1)">
+                        <label>Registered Patient ID</label>
+                        <input type="number" id="admit-patient-id" class="ui-input" min="1" required placeholder="e.g. 1">
                     </div>
                     <div class="input-group">
                         <label>Attending Doctor ID</label>
-                        <input type="number" id="admit-doctor-id" min="1" required placeholder="Doctor ID (e.g. 1)">
+                        <input type="number" id="admit-doctor-id" class="ui-input" min="1" required placeholder="e.g. 1">
                     </div>
                     <div class="input-group">
-                        <label>Select Available Bed</label>
-                        <select id="admit-bed-select" required>
-                            <option value="">Loading beds...</option>
-                        </select>
+                        <label>Allocate Available Bed</label>
+                        <select id="admit-bed-select" class="ui-input" required><option value="">Loading beds...</option></select>
                     </div>
                     <div class="input-group">
-                        <label>Primary Diagnosis</label>
-                        <textarea id="admit-diagnosis" rows="2" required placeholder="Provisional clinical diagnosis"></textarea>
+                        <label>Admission Diagnosis</label>
+                        <textarea id="admit-diagnosis" class="ui-input" rows="3" required placeholder="Provisional clinical assessment"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-block">
-                        <i class="fa-solid fa-check"></i> Admit & Lock Bed
-                    </button>
+                    <button type="submit" class="btn btn-primary btn-block">Admit & Lock Bed</button>
                 </form>
             </div>
             ` : ''}
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
                     <h3><i class="fa-solid fa-procedures"></i> Active Inpatient Census</h3>
-                    <button id="refresh-admissions-btn" class="btn btn-xs" style="background: rgba(255,255,255,0.05); color: var(--text-main);">
-                        <i class="fa-solid fa-rotate-right"></i> Refresh
-                    </button>
+                    <button id="refresh-admissions-btn" class="btn btn-xs" style="background: var(--bg-surface-hover); color: var(--text-main);"><i class="fa-solid fa-rotate-right"></i> Refresh</button>
                 </div>
                 <div class="data-table-container">
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Adm ID</th>
-                                <th>Patient ID</th>
-                                <th>Doctor ID</th>
-                                <th>Ward / Bed</th>
-                                <th>Diagnosis</th>
-                                <th>Admitted At</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="admissions-table-body">
-                            <tr><td colspan="7" style="text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading inpatients...</td></tr>
-                        </tbody>
+                        <thead><tr><th>Adm ID</th><th>Patient</th><th>Doctor</th><th>Ward/Bed</th><th>Diagnosis</th><th>Date</th><th>Action</th></tr></thead>
+                        <tbody id="admissions-table-body"><tr><td colspan="7" style="text-align:center; color:var(--text-muted);">Loading...</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -517,59 +532,40 @@ async function renderAdmissionsView(container) {
         if (!canAdmit) return;
         const select = document.getElementById('admit-bed-select');
         try {
-            const availableBeds = await authFetch('/infrastructure/beds/available');
-            select.innerHTML = availableBeds && availableBeds.length > 0 
-                ? availableBeds.map(b => `<option value="${b.id}">${b.bedNumber} — ${b.wardName} (${b.wardCategory})</option>`).join('')
-                : `<option value="">No available beds. Free a bed first.</option>`;
-        } catch (e) {
-            select.innerHTML = `<option value="">Error loading beds</option>`;
-        }
+            const beds = await authFetch('/infrastructure/beds/available');
+            select.innerHTML = beds && beds.length > 0 ? beds.map(b => `<option value="${b.id}">${b.bedNumber} — ${b.wardName}</option>`).join('') : `<option value="">No beds available.</option>`;
+        } catch (e) { select.innerHTML = `<option value="">Error</option>`; }
     }
 
     async function loadActiveAdmissionsTable() {
         const tbody = document.getElementById('admissions-table-body');
         try {
             const admissions = await authFetch('/admissions/active');
-            if (!admissions || admissions.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active inpatients admitted.</td></tr>`;
-                return;
-            }
+            if (!admissions || admissions.length === 0) { tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No active inpatients.</td></tr>`; return; }
             tbody.innerHTML = admissions.map(a => `
                 <tr>
-                    <td><b>#${a.id}</b></td>
-                    <td>Patient #${a.patientId}</td>
-                    <td>Dr. #${a.doctorId}</td>
-                    <td>
-                        <span style="color: var(--accent-blue); font-weight: 600;">${a.bedNumber}</span>
-                        <div style="font-size: 10px; color: var(--text-muted);">${a.wardName}</div>
-                    </td>
-                    <td>${a.diagnosis}</td>
-                    <td>${new Date(a.admissionTime).toLocaleDateString()} ${new Date(a.admissionTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                    <td>
-                        ${(state.role === 'ADMIN' || state.role === 'DOCTOR' || state.role === 'RECEPTIONIST') ? `
-                            <button onclick="promptDischarge(${a.id})" class="btn btn-xs" style="background: rgba(244, 63, 94, 0.2); color: var(--accent-rose);">
-                                <i class="fa-solid fa-arrow-right-from-bracket"></i> Discharge
-                            </button>
-                        ` : '<span style="color: var(--text-muted); font-size: 11px;">Active</span>'}
-                    </td>
+                    <td><b>#${a.id}</b></td><td>Patient #${a.patientId}</td><td>Dr. #${a.doctorId}</td>
+                    <td><span style="color: var(--accent-primary); font-weight: 600;">${a.bedNumber}</span><div style="font-size:11px; color:var(--text-muted);">${a.wardName}</div></td>
+                    <td>${a.diagnosis}</td><td>${new Date(a.admissionTime).toLocaleDateString()}</td>
+                    <td>${(state.role === 'ADMIN' || state.role === 'DOCTOR' || state.role === 'RECEPTIONIST') ? `<button onclick="promptDischarge(${a.id})" class="btn btn-xs btn-danger-subtle">Discharge</button>` : 'Active'}</td>
                 </tr>
             `).join('');
-        } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-rose); text-align: center;">Failed to load admissions.</td></tr>`;
-        }
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-rose); text-align:center;">Failed to load.</td></tr>`; }
     }
 
     if (canAdmit) {
         document.getElementById('admit-patient-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const payload = {
-                patientId: parseInt(document.getElementById('admit-patient-id').value),
-                doctorId: parseInt(document.getElementById('admit-doctor-id').value),
-                bedId: parseInt(document.getElementById('admit-bed-select').value),
-                diagnosis: document.getElementById('admit-diagnosis').value.trim()
-            };
             try {
-                await authFetch('/admissions', { method: 'POST', body: JSON.stringify(payload) });
+                await authFetch('/admissions', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patientId: parseInt(document.getElementById('admit-patient-id').value),
+                        doctorId: parseInt(document.getElementById('admit-doctor-id').value),
+                        bedId: parseInt(document.getElementById('admit-bed-select').value),
+                        diagnosis: document.getElementById('admit-diagnosis').value.trim()
+                    })
+                });
                 showToast('Patient admitted and bed locked!', 'success');
                 document.getElementById('admit-patient-form').reset();
                 loadAvailableBedsDropdown();
@@ -578,30 +574,25 @@ async function renderAdmissionsView(container) {
         });
     }
 
-    document.getElementById('refresh-admissions-btn').addEventListener('click', () => {
-        loadAvailableBedsDropdown();
-        loadActiveAdmissionsTable();
-    });
-
-    loadAvailableBedsDropdown();
-    loadActiveAdmissionsTable();
+    document.getElementById('refresh-admissions-btn').addEventListener('click', () => { loadAvailableBedsDropdown(); loadActiveAdmissionsTable(); });
+    loadAvailableBedsDropdown(); loadActiveAdmissionsTable();
 }
 
 window.promptDischarge = async function(admissionId) {
-    const notes = prompt("Enter clinical discharge notes / summary:");
+    const notes = prompt("Enter clinical discharge notes:");
     if (notes === null) return;
     try {
         await authFetch(`/admissions/${admissionId}/discharge`, {
             method: 'PATCH',
             body: JSON.stringify({ dischargeNotes: notes || "Discharged in stable condition." })
         });
-        showToast(`Patient #${admissionId} discharged and bed released!`, 'success');
+        showToast('Patient discharged and bed released!', 'success');
         loadView('admissions');
     } catch (err) {}
 };
 
 // ----------------------------------------------------
-// 4. Diagnostic Pathology & Radiology (Lab) View
+// 5. Diagnostic Lab View
 // ----------------------------------------------------
 async function renderLabView(container) {
     const isAdmin = state.role === 'ADMIN';
@@ -610,83 +601,44 @@ async function renderLabView(container) {
 
     container.innerHTML = `
         <div class="view-grid-layout" style="${(!isAdmin && !isDoctor) ? 'grid-template-columns: 1fr;' : ''}">
-            <div class="panel-column" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="panel-column" style="display: flex; flex-direction: column; gap: 24px;">
                 ${isAdmin ? `
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-plus-circle"></i> Add Test to Catalog</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-plus-circle"></i> Add Test to Catalog</h3></div>
                     <form id="create-lab-test-form">
-                        <div class="input-group">
-                            <label>Test Name</label>
-                            <input type="text" id="test-name" required placeholder="e.g. Serum Electrolytes">
-                        </div>
-                        <div class="input-group">
-                            <label>Tariff (₹)</label>
-                            <input type="number" id="test-price" min="1" step="1" required placeholder="450">
-                        </div>
+                        <div class="input-group"><label>Test Name</label><input type="text" id="test-name" class="ui-input" required placeholder="e.g. Complete Blood Count"></div>
+                        <div class="input-group"><label>Tariff (₹)</label><input type="number" id="test-price" class="ui-input" required placeholder="350"></div>
                         <button type="submit" class="btn btn-primary btn-block">Add to Catalog</button>
                     </form>
                 </div>
                 ` : ''}
 
                 ${isDoctor ? `
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-flask-vial"></i> Order Diagnostic Test</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-flask-vial"></i> Order Test</h3></div>
                     <form id="order-lab-form">
-                        <div class="input-group">
-                            <label>Admission ID</label>
-                            <input type="number" id="lab-order-admission-id" min="1" required placeholder="Admission ID (e.g. 2)">
-                        </div>
-                        <div class="input-group">
-                            <label>Doctor ID</label>
-                            <input type="number" id="lab-order-doctor-id" min="1" required placeholder="Doctor ID (e.g. 1)">
-                        </div>
-                        <div class="input-group">
-                            <label>Diagnostic Test</label>
-                            <select id="lab-test-select" required>
-                                <option value="">Loading catalog...</option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Priority</label>
-                            <select id="lab-order-priority" required>
-                                <option value="ROUTINE">ROUTINE (Standard)</option>
-                                <option value="URGENT">URGENT (4 Hours)</option>
-                                <option value="STAT">STAT (Immediate Emergency)</option>
-                            </select>
-                        </div>
+                        <div class="input-group"><label>Admission ID</label><input type="number" id="lab-order-admission-id" class="ui-input" required placeholder="Adm ID"></div>
+                        <div class="input-group"><label>Doctor ID</label><input type="number" id="lab-order-doctor-id" class="ui-input" required placeholder="Doc ID"></div>
+                        <div class="input-group"><label>Test</label><select id="lab-test-select" class="ui-input" required></select></div>
+                        <div class="input-group"><label>Priority</label><select id="lab-order-priority" class="ui-input" required><option value="ROUTINE">ROUTINE</option><option value="URGENT">URGENT</option><option value="STAT">STAT</option></select></div>
                         <button type="submit" class="btn btn-primary btn-block">Requisition Test</button>
                     </form>
                 </div>
                 ` : ''}
             </div>
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
-                    <h3><i class="fa-solid fa-microscope"></i> Admission Lab Orders</h3>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="number" id="lookup-lab-adm-id" min="1" placeholder="Adm ID (e.g. 2)" style="width: 120px; padding: 5px 8px; font-size: 11px; background: rgba(7,13,30,0.6); border: 1px solid var(--glass-border); color: var(--text-main); border-radius: 4px;">
+                    <h3><i class="fa-solid fa-microscope"></i> Lab Orders</h3>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="lookup-lab-adm-id" class="ui-input" placeholder="Adm ID" style="width: 100px; padding: 6px 10px; height: 32px;">
                         <button id="fetch-lab-orders-btn" class="btn btn-xs btn-primary">Lookup</button>
                     </div>
                 </div>
                 <div class="data-table-container">
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Order ID</th>
-                                <th>Test</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Findings / Report</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="lab-orders-table-body">
-                            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Enter an Admission ID and click Lookup to load lab orders.</td></tr>
-                        </tbody>
+                        <thead><tr><th>Order ID</th><th>Test</th><th>Priority</th><th>Status</th><th>Findings</th><th>Action</th></tr></thead>
+                        <tbody id="lab-orders-table-body"><tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Enter Admission ID to load orders.</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -695,68 +647,32 @@ async function renderLabView(container) {
 
     async function loadTestCatalogDropdown() {
         if (!isDoctor) return;
-        const select = document.getElementById('lab-test-select');
         try {
             const tests = await authFetch('/lab/tests');
-            select.innerHTML = tests && tests.length > 0
-                ? tests.map(t => `<option value="${t.id}">${t.testName} (₹${t.price})</option>`).join('')
-                : `<option value="">No tests found in catalog.</option>`;
-        } catch (e) {
-            select.innerHTML = `<option value="">Error fetching catalog</option>`;
-        }
+            document.getElementById('lab-test-select').innerHTML = tests && tests.length > 0 ? tests.map(t => `<option value="${t.id}">${t.testName} (₹${t.price})</option>`).join('') : '<option value="">No tests</option>';
+        } catch (e) {}
     }
 
-    async function fetchLabOrders(admissionId) {
+    async function fetchLabOrders(admId) {
         const tbody = document.getElementById('lab-orders-table-body');
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching orders...</td></tr>`;
         try {
-            const orders = await authFetch(`/lab/orders/admission/${admissionId}`);
-            if (!orders || orders.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No diagnostic orders found for Admission #${admissionId}.</td></tr>`;
-                return;
-            }
+            const orders = await authFetch(`/lab/orders/admission/${admId}`);
+            if (!orders || orders.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px;">No orders found for #${admId}.</td></tr>`; return; }
             tbody.innerHTML = orders.map(o => `
                 <tr>
-                    <td><b>#${o.id}</b></td>
-                    <td>
-                        <span style="font-weight: 600; color: var(--text-main);">${o.testName}</span>
-                        <div style="font-size: 10px; color: var(--accent-blue);">₹${o.price}</div>
-                    </td>
-                    <td><span class="badge badge-${o.priority.toLowerCase()}">${o.priority}</span></td>
-                    <td><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></td>
-                    <td>${o.resultFindings ? `<span style="font-size: 11px; color: var(--accent-green);">${o.resultFindings}</span>` : `<span style="color: var(--text-dim); font-size: 11px;">Pending analysis</span>`}</td>
-                    <td>
-                        ${(o.status !== 'COMPLETED' && isLabTech) ? `
-                            <button onclick="publishLabResult(${o.id}, ${admissionId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">
-                                <i class="fa-solid fa-file-signature"></i> Publish
-                            </button>
-                        ` : `<span style="color: var(--accent-green); font-size: 11px;"><i class="fa-solid fa-check"></i> ${o.status}</span>`}
-                    </td>
+                    <td><b>#${o.id}</b></td><td><span style="font-weight:600;">${o.testName}</span><div style="font-size:11px; color:var(--text-muted);">₹${o.price}</div></td>
+                    <td><span class="badge badge-${o.priority.toLowerCase()}">${o.priority}</span></td><td><span class="badge badge-${o.status.toLowerCase()}">${o.status}</span></td>
+                    <td>${o.resultFindings ? `<span style="font-size: 12px; color: var(--accent-green);">${o.resultFindings}</span>` : `<span style="color: var(--text-dim); font-size: 12px;">Pending</span>`}</td>
+                    <td>${(o.status !== 'COMPLETED' && isLabTech) ? `<button onclick="publishLabResult(${o.id}, ${admId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">Publish</button>` : `<span style="color: var(--text-dim); font-size: 12px;">${o.status}</span>`}</td>
                 </tr>
             `).join('');
-        } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to fetch lab orders.</td></tr>`;
-        }
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to load.</td></tr>`; }
     }
 
     if (isAdmin) {
         document.getElementById('create-lab-test-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const price = parseFloat(document.getElementById('test-price').value);
-            if (price <= 0 || isNaN(price)) {
-                showToast('Price must be greater than zero.', 'error');
-                return;
-            }
-            const payload = {
-                testName: document.getElementById('test-name').value.trim(),
-                price: price
-            };
-            try {
-                await authFetch('/lab/tests', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('Diagnostic test added to catalog!', 'success');
-                document.getElementById('create-lab-test-form').reset();
-                loadTestCatalogDropdown();
-            } catch (err) {}
+            try { await authFetch('/lab/tests', { method: 'POST', body: JSON.stringify({ testName: document.getElementById('test-name').value.trim(), price: parseFloat(document.getElementById('test-price').value) }) }); showToast('Test added!', 'success'); loadTestCatalogDropdown(); } catch (err) {}
         });
     }
 
@@ -764,48 +680,22 @@ async function renderLabView(container) {
         document.getElementById('order-lab-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const admId = parseInt(document.getElementById('lab-order-admission-id').value);
-            const payload = {
-                admissionId: admId,
-                doctorId: parseInt(document.getElementById('lab-order-doctor-id').value),
-                testId: parseInt(document.getElementById('lab-test-select').value),
-                priority: document.getElementById('lab-order-priority').value
-            };
-            try {
-                await authFetch('/lab/orders', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('Lab test order placed successfully!', 'success');
-                document.getElementById('lookup-lab-adm-id').value = admId;
-                fetchLabOrders(admId);
-            } catch (err) {}
+            try { await authFetch('/lab/orders', { method: 'POST', body: JSON.stringify({ admissionId: admId, doctorId: parseInt(document.getElementById('lab-order-doctor-id').value), testId: parseInt(document.getElementById('lab-test-select').value), priority: document.getElementById('lab-order-priority').value }) }); showToast('Order placed!', 'success'); fetchLabOrders(admId); } catch (err) {}
         });
     }
 
-    document.getElementById('fetch-lab-orders-btn').addEventListener('click', () => {
-        const admId = document.getElementById('lookup-lab-adm-id').value.trim();
-        if (admId) fetchLabOrders(parseInt(admId));
-    });
-
+    document.getElementById('fetch-lab-orders-btn').addEventListener('click', () => { const id = document.getElementById('lookup-lab-adm-id').value; if(id) fetchLabOrders(id); });
     loadTestCatalogDropdown();
 }
 
-window.publishLabResult = async function(orderId, admissionId) {
-    const findings = prompt("Enter diagnostic / pathology findings:");
+window.publishLabResult = async function(orderId, admId) {
+    const findings = prompt("Enter clinical pathology findings:");
     if (!findings) return;
-    try {
-        await authFetch(`/lab/orders/${orderId}/results`, {
-            method: 'PATCH',
-            body: JSON.stringify({ resultFindings: findings })
-        });
-        showToast('Lab results published!', 'success');
-        const admInput = document.getElementById('lookup-lab-adm-id');
-        if (admInput) {
-            admInput.value = admissionId;
-            document.getElementById('fetch-lab-orders-btn').click();
-        }
-    } catch (err) {}
+    try { await authFetch(`/lab/orders/${orderId}/results`, { method: 'PATCH', body: JSON.stringify({ resultFindings: findings }) }); showToast('Results published!', 'success'); document.getElementById('fetch-lab-orders-btn').click(); } catch (err) {}
 };
 
 // ----------------------------------------------------
-// 5. Medication Administration Record (MAR) View
+// 6. Medication Administration Record (MAR)
 // ----------------------------------------------------
 async function renderMarView(container) {
     const canPrescribe = state.role === 'DOCTOR' || state.role === 'ADMIN';
@@ -814,61 +704,35 @@ async function renderMarView(container) {
     container.innerHTML = `
         <div class="view-grid-layout" style="${!canPrescribe ? 'grid-template-columns: 1fr;' : ''}">
             ${canPrescribe ? `
-            <div class="glass-card panel-card">
-                <div class="panel-header">
-                    <h3><i class="fa-solid fa-prescription"></i> Multi-Drug Prescription</h3>
-                </div>
-                <form id="bulk-prescribe-med-form">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
-                        <div class="input-group">
-                            <label>Admission ID</label>
-                            <input type="number" id="mar-adm-id" min="1" required placeholder="Adm ID (e.g. 2)">
-                        </div>
-                        <div class="input-group">
-                            <label>Doctor ID</label>
-                            <input type="number" id="mar-doc-id" min="1" required placeholder="Doctor ID (e.g. 1)">
-                        </div>
+            <div class="ui-card panel-card">
+                <div class="panel-header"><h3><i class="fa-solid fa-prescription"></i> Multi-Drug Prescription</h3></div>
+                <form id="bulk-prescribe-form">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                        <div class="input-group" style="margin:0;"><label>Admission ID</label><input type="number" id="mar-adm-id" class="ui-input" required placeholder="Adm ID"></div>
+                        <div class="input-group" style="margin:0;"><label>Doctor ID</label><input type="number" id="mar-doc-id" class="ui-input" required placeholder="Doc ID"></div>
                     </div>
-
-                    <div class="panel-header" style="margin-bottom: 8px; padding-bottom: 4px;">
-                        <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Medication Items</span>
-                        <button type="button" onclick="addMedicineRow()" class="btn btn-xs" style="background: rgba(56, 189, 248, 0.15); color: var(--accent-blue);">
-                            <i class="fa-solid fa-plus"></i> Add Row
-                        </button>
+                    <div class="panel-header" style="margin-bottom: 12px; padding-bottom: 8px;">
+                        <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">MEDICATION ITEMS</span>
+                        <button type="button" onclick="addMedicineRow()" class="btn btn-xs" style="background: rgba(59, 130, 246, 0.1); color: var(--accent-primary);"><i class="fa-solid fa-plus"></i> Add Row</button>
                     </div>
-
-                    <div id="medicine-items-repeater" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
-
-                    <button type="submit" class="btn btn-primary btn-block">
-                        <i class="fa-solid fa-paper-plane"></i> Submit Prescription Sheet
-                    </button>
+                    <div id="medicine-items-repeater" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"></div>
+                    <button type="submit" class="btn btn-primary btn-block">Submit Prescription Sheet</button>
                 </form>
             </div>
             ` : ''}
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
-                    <h3><i class="fa-solid fa-syringe"></i> MAR Dosage Administration Log</h3>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="number" id="lookup-mar-adm-id" min="1" placeholder="Adm ID (e.g. 2)" style="width: 120px; padding: 5px 8px; font-size: 11px; background: rgba(7,13,30,0.6); border: 1px solid var(--glass-border); color: var(--text-main); border-radius: 4px;">
+                    <h3><i class="fa-solid fa-syringe"></i> Administration Log</h3>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="lookup-mar-adm-id" class="ui-input" placeholder="Adm ID" style="width: 100px; padding: 6px 10px; height: 32px;">
                         <button id="fetch-mar-btn" class="btn btn-xs btn-primary">Lookup</button>
                     </div>
                 </div>
                 <div class="data-table-container">
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Rx ID</th>
-                                <th>Medicine</th>
-                                <th>Route / Freq</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mar-table-body">
-                            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Enter an Admission ID and click Lookup to load MAR records.</td></tr>
-                        </tbody>
+                        <thead><tr><th>Rx ID</th><th>Medicine</th><th>Route/Freq</th><th>Price</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody id="mar-table-body"><tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Enter Admission ID to load logs.</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -878,244 +742,126 @@ async function renderMarView(container) {
     window.addMedicineRow = function() {
         const repeater = document.getElementById('medicine-items-repeater');
         if (!repeater) return;
-        const rowDiv = document.createElement('div');
-        rowDiv.className = 'med-item-row';
-        rowDiv.style.cssText = 'padding: 10px; background: rgba(7,13,30,0.5); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 6px;';
-        
-        rowDiv.innerHTML = `
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px;">
-                <input type="text" class="med-name" placeholder="Drug & Strength (e.g. Paracetamol 500mg)" required style="padding: 6px 8px; font-size: 11px;">
-                <input type="text" class="med-dosage" placeholder="Dose (e.g. 1 Tab)" required style="padding: 6px 8px; font-size: 11px;">
+        const row = document.createElement('div');
+        row.className = 'med-item-row';
+        row.style.cssText = 'padding: 12px; background: var(--bg-page); border: 1px solid var(--border-color); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 8px;';
+        row.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px;">
+                <input type="text" class="ui-input med-name" placeholder="Drug & Strength (e.g. Paracetamol 500mg)" required>
+                <input type="text" class="ui-input med-dosage" placeholder="Dose (e.g. 1 Tab)" required>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
-                <select class="med-route" required style="padding: 6px; font-size: 11px;">
-                    <option value="ORAL">ORAL</option>
-                    <option value="INTRAVENOUS">IV</option>
-                    <option value="INTRAMUSCULAR">IM</option>
-                    <option value="SUBCUTANEOUS">SC</option>
-                    <option value="TOPICAL">TOPICAL</option>
-                </select>
-                <input type="text" class="med-frequency" placeholder="Freq (e.g. TDS)" required style="padding: 6px 8px; font-size: 11px;">
-                <input type="number" class="med-price" min="1" step="1" placeholder="Price (₹)" required style="padding: 6px 8px; font-size: 11px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                <select class="ui-input med-route" required><option value="ORAL">ORAL</option><option value="INTRAVENOUS">IV</option><option value="INTRAMUSCULAR">IM</option></select>
+                <input type="text" class="ui-input med-frequency" placeholder="Freq (TDS)" required>
+                <input type="number" class="ui-input med-price" min="1" placeholder="Price (₹)" required>
             </div>
-            ${repeater.children.length > 0 ? `
-                <button type="button" onclick="this.closest('.med-item-row').remove()" class="btn btn-xs" style="align-self: flex-end; background: rgba(244,63,94,0.15); color: var(--accent-rose);">
-                    <i class="fa-solid fa-trash"></i> Remove
-                </button>
-            ` : ''}
+            ${repeater.children.length > 0 ? `<button type="button" onclick="this.closest('.med-item-row').remove()" class="btn btn-xs btn-danger-subtle" style="align-self: flex-end;"><i class="fa-solid fa-trash"></i></button>` : ''}
         `;
-        repeater.appendChild(rowDiv);
+        repeater.appendChild(row);
     };
 
     if (canPrescribe) {
         window.addMedicineRow();
-
-        document.getElementById('bulk-prescribe-med-form').addEventListener('submit', async (e) => {
+        document.getElementById('bulk-prescribe-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const admId = parseInt(document.getElementById('mar-adm-id').value);
-            const docId = parseInt(document.getElementById('mar-doc-id').value);
-
-            const rowNodes = document.querySelectorAll('.med-item-row');
-            const items = [];
-
-            for (let row of rowNodes) {
-                const price = parseFloat(row.querySelector('.med-price').value);
-                if (price <= 0 || isNaN(price)) {
-                    showToast('Each medicine price must be greater than zero.', 'error');
-                    return;
-                }
-                items.push({
-                    admissionId: admId,
-                    doctorId: docId,
-                    medicineName: row.querySelector('.med-name').value.trim(),
-                    dosage: row.querySelector('.med-dosage').value.trim(),
-                    route: row.querySelector('.med-route').value,
-                    frequency: row.querySelector('.med-frequency').value.trim(),
-                    unitPrice: price
-                });
-            }
-
+            const items = Array.from(document.querySelectorAll('.med-item-row')).map(row => ({
+                admissionId: admId,
+                doctorId: parseInt(document.getElementById('mar-doc-id').value),
+                medicineName: row.querySelector('.med-name').value.trim(),
+                dosage: row.querySelector('.med-dosage').value.trim(),
+                route: row.querySelector('.med-route').value,
+                frequency: row.querySelector('.med-frequency').value.trim(),
+                unitPrice: parseFloat(row.querySelector('.med-price').value)
+            }));
             try {
-                await Promise.all(items.map(item => 
-                    authFetch('/mar/prescriptions', {
-                        method: 'POST',
-                        body: JSON.stringify(item)
-                    })
-                ));
-
-                showToast(`${items.length} prescription order(s) submitted!`, 'success');
+                await authFetch('/mar/prescriptions/bulk', { method: 'POST', body: JSON.stringify({ prescriptions: items }) });
+                showToast('Prescriptions recorded!', 'success');
                 document.getElementById('medicine-items-repeater').innerHTML = '';
                 window.addMedicineRow();
                 document.getElementById('lookup-mar-adm-id').value = admId;
-                fetchMarRecords(admId);
+                document.getElementById('fetch-mar-btn').click();
             } catch (err) {}
         });
     }
 
-    async function fetchMarRecords(admissionId) {
+    document.getElementById('fetch-mar-btn').addEventListener('click', async () => {
+        const admId = document.getElementById('lookup-mar-adm-id').value;
+        if (!admId) return;
         const tbody = document.getElementById('mar-table-body');
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching MAR logs...</td></tr>`;
         try {
-            const meds = await authFetch(`/mar/admissions/${admissionId}`);
-            if (!meds || meds.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">No prescribed medications found for Admission #${admissionId}.</td></tr>`;
-                return;
-            }
+            const meds = await authFetch(`/mar/admissions/${admId}`);
+            if (!meds || meds.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px;">No medications found.</td></tr>`; return; }
             tbody.innerHTML = meds.map(m => `
                 <tr>
-                    <td><b>#${m.id}</b></td>
-                    <td>
-                        <span style="font-weight: 600; color: var(--text-main);">${m.medicineName}</span>
-                        <div style="font-size: 10px; color: var(--text-muted);">${m.dosage}</div>
-                    </td>
-                    <td>
-                        <span class="badge badge-doctor">${m.route}</span>
-                        <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">${m.frequency}</div>
-                    </td>
-                    <td style="color: var(--accent-blue); font-weight: 600;">₹${m.unitPrice}</td>
-                    <td>
-                        ${m.dispensed ? `
-                            <span class="badge badge-completed"><i class="fa-solid fa-check"></i> Given</span>
-                            <div style="font-size: 9px; color: var(--text-muted); margin-top: 1px;">Nurse #${m.administeredByNurseId}</div>
-                        ` : `
-                            <span class="badge badge-pending">Pending Dose</span>
-                        `}
-                    </td>
-                    <td>
-                        ${(!m.dispensed && canAdminister) ? `
-                            <button onclick="administerDose(${m.id}, ${admissionId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">
-                                <i class="fa-solid fa-check-double"></i> Administer
-                            </button>
-                        ` : `<span style="font-size: 10px; color: var(--text-dim);">${m.administrationNotes || (m.dispensed ? 'Administered' : 'Awaiting Nurse')}</span>`}
-                    </td>
+                    <td><b>#${m.id}</b></td><td><span style="font-weight:600;">${m.medicineName}</span><div style="font-size:11px; color:var(--text-muted);">${m.dosage}</div></td>
+                    <td><span class="badge badge-doctor">${m.route}</span><div style="font-size:11px; color:var(--text-muted); margin-top:4px;">${m.frequency}</div></td>
+                    <td><span style="color:var(--accent-primary); font-weight:600;">₹${m.unitPrice}</span></td>
+                    <td>${m.dispensed ? `<span class="badge badge-completed">Given</span>` : `<span class="badge badge-pending">Pending</span>`}</td>
+                    <td>${(!m.dispensed && canAdminister) ? `<button onclick="administerDose(${m.id}, ${admId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">Administer</button>` : `<span style="font-size:12px; color:var(--text-dim);">${m.dispensed ? 'Done' : 'Waiting'}</span>`}</td>
                 </tr>
             `).join('');
-        } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to fetch MAR records.</td></tr>`;
-        }
-    }
-
-    document.getElementById('fetch-mar-btn').addEventListener('click', () => {
-        const admId = document.getElementById('lookup-mar-adm-id').value.trim();
-        if (admId) fetchMarRecords(parseInt(admId));
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to load.</td></tr>`; }
     });
 }
 
-window.administerDose = async function(orderId, admissionId) {
-    const notes = prompt("Enter nurse administration notes (e.g. Given IV Push):");
-    if (notes === null) return;
+window.administerDose = async function(orderId, admId) {
     try {
-        await authFetch(`/mar/orders/${orderId}/administer`, {
-            method: 'PATCH',
-            body: JSON.stringify({
-                nurseId: 1,
-                administrationNotes: notes || "Administered as prescribed."
-            })
-        });
-        showToast('Medication dose logged as administered!', 'success');
-        const admInput = document.getElementById('lookup-mar-adm-id');
-        if (admInput) {
-            admInput.value = admissionId;
-            document.getElementById('fetch-mar-btn').click();
-        }
+        await authFetch(`/mar/orders/${orderId}/administer`, { method: 'PATCH', body: JSON.stringify({ nurseId: 1, administrationNotes: "Administered as prescribed." }) });
+        showToast('Dose administered!', 'success');
+        document.getElementById('fetch-mar-btn').click();
     } catch (err) {}
 };
 
 // ----------------------------------------------------
-// 6. Operation Theater (OT) Suite View
+// 7. OT Suite
 // ----------------------------------------------------
 async function renderOtView(container) {
     const isAdmin = state.role === 'ADMIN';
     const isDoctor = state.role === 'DOCTOR' || isAdmin;
-
     container.innerHTML = `
         <div class="view-grid-layout" style="${(!isAdmin && !isDoctor) ? 'grid-template-columns: 1fr;' : ''}">
-            <div class="panel-column" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="panel-column" style="display: flex; flex-direction: column; gap: 24px;">
                 ${isAdmin ? `
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-door-open"></i> Register OT Room</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-door-open"></i> Register OT</h3></div>
                     <form id="create-ot-room-form">
-                        <div class="input-group">
-                            <label>Room Number / Code</label>
-                            <input type="text" id="ot-room-number" required placeholder="e.g. OT-01">
-                        </div>
-                        <div class="input-group">
-                            <label>Specialty</label>
-                            <input type="text" id="ot-room-type" required placeholder="e.g. Cardiac & Vascular Surgery">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block">Register OT Room</button>
+                        <div class="input-group"><label>Room Number</label><input type="text" id="ot-room-number" class="ui-input" required placeholder="e.g. OT-01"></div>
+                        <div class="input-group"><label>Specialty</label><input type="text" id="ot-room-type" class="ui-input" required placeholder="General / Cardiac"></div>
+                        <button type="submit" class="btn btn-primary btn-block">Register OT</button>
                     </form>
-                </div>
-                ` : ''}
+                </div>` : ''}
 
                 ${isDoctor ? `
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-calendar-plus"></i> Schedule Surgery</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-calendar-plus"></i> Schedule Surgery</h3></div>
                     <form id="schedule-surgery-form">
-                        <div class="input-group">
-                            <label>OT Room</label>
-                            <select id="ot-room-select" required>
-                                <option value="">Loading rooms...</option>
-                            </select>
+                        <div class="input-group"><label>OT Room</label><select id="ot-room-select" class="ui-input" required></select></div>
+                        <div class="input-group"><label>Admission ID</label><input type="number" id="ot-admission-id" class="ui-input" required placeholder="Adm ID"></div>
+                        <div class="input-group"><label>Lead Surgeon ID</label><input type="number" id="ot-surgeon-id" class="ui-input" required placeholder="Doc ID"></div>
+                        <div class="input-group"><label>Procedure Name</label><input type="text" id="ot-procedure-name" class="ui-input" required placeholder="Procedure"></div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                            <div class="input-group"><label>Start Time</label><input type="datetime-local" id="ot-start-time" class="ui-input" required></div>
+                            <div class="input-group"><label>End Time</label><input type="datetime-local" id="ot-end-time" class="ui-input" required></div>
                         </div>
-                        <div class="input-group">
-                            <label>Admission ID</label>
-                            <input type="number" id="ot-admission-id" min="1" required placeholder="Admission ID (e.g. 2)">
-                        </div>
-                        <div class="input-group">
-                            <label>Lead Surgeon (Doctor ID)</label>
-                            <input type="number" id="ot-surgeon-id" min="1" required placeholder="Doctor ID (e.g. 1)">
-                        </div>
-                        <div class="input-group">
-                            <label>Procedure Name</label>
-                            <input type="text" id="ot-procedure-name" required placeholder="e.g. Laparoscopic Appendectomy">
-                        </div>
-                        <div class="input-group">
-                            <label>Start Time</label>
-                            <input type="datetime-local" id="ot-start-time" required>
-                        </div>
-                        <div class="input-group">
-                            <label>End Time</label>
-                            <input type="datetime-local" id="ot-end-time" required>
-                        </div>
-                        <div class="input-group">
-                            <label>Procedure Tariff (₹)</label>
-                            <input type="number" id="ot-charge" min="1" step="100" required placeholder="25000">
-                        </div>
+                        <div class="input-group"><label>Tariff (₹)</label><input type="number" id="ot-charge" class="ui-input" required placeholder="25000"></div>
                         <button type="submit" class="btn btn-primary btn-block">Schedule Surgery</button>
                     </form>
-                </div>
-                ` : ''}
+                </div>` : ''}
             </div>
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
-                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Admission Surgical Schedules</h3>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="number" id="lookup-ot-adm-id" min="1" placeholder="Adm ID (e.g. 2)" style="width: 120px; padding: 5px 8px; font-size: 11px; background: rgba(7,13,30,0.6); border: 1px solid var(--glass-border); color: var(--text-main); border-radius: 4px;">
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Surgical Schedules</h3>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="lookup-ot-adm-id" class="ui-input" placeholder="Adm ID" style="width: 100px; padding: 6px 10px; height: 32px;">
                         <button id="fetch-ot-schedules-btn" class="btn btn-xs btn-primary">Lookup</button>
                     </div>
                 </div>
                 <div class="data-table-container">
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Schedule ID</th>
-                                <th>Room</th>
-                                <th>Procedure</th>
-                                <th>Surgeon</th>
-                                <th>Window</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ot-schedules-table-body">
-                            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Enter an Admission ID to view scheduled surgeries.</td></tr>
-                        </tbody>
+                        <thead><tr><th>ID</th><th>Room</th><th>Procedure</th><th>Surgeon</th><th>Status</th><th>Action</th></tr></thead>
+                        <tbody id="ot-schedules-table-body"><tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Enter Admission ID to load.</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -1124,341 +870,165 @@ async function renderOtView(container) {
 
     async function loadOtRoomsDropdown() {
         if (!isDoctor) return;
-        const select = document.getElementById('ot-room-select');
         try {
             const rooms = await authFetch('/ot/rooms');
-            select.innerHTML = rooms && rooms.length > 0
-                ? rooms.map(r => `<option value="${r.id}">${r.roomNumber} (${r.roomType})</option>`).join('')
-                : `<option value="">No OT rooms found.</option>`;
-        } catch (e) {
-            select.innerHTML = `<option value="">Error loading OT rooms</option>`;
-        }
-    }
-
-    async function fetchOtSchedules(admissionId) {
-        const tbody = document.getElementById('ot-schedules-table-body');
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading surgical schedule...</td></tr>`;
-        try {
-            const schedules = await authFetch(`/ot/schedules/admission/${admissionId}`);
-            if (!schedules || schedules.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">No surgical records found for Admission #${admissionId}.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = schedules.map(s => `
-                <tr>
-                    <td><b>#${s.id}</b></td>
-                    <td>
-                        <span style="font-weight: 600; color: var(--accent-blue);">${s.roomNumber}</span>
-                        <div style="font-size: 10px; color: var(--text-muted);">${s.roomType}</div>
-                    </td>
-                    <td>
-                        <span style="font-weight: 600; color: var(--text-main);">${s.procedureName}</span>
-                        <div style="font-size: 10px; color: var(--accent-blue);">₹${s.procedureCharge}</div>
-                    </td>
-                    <td>Dr. #${s.leadSurgeonId}</td>
-                    <td style="font-size: 11px;">
-                        <div><b>Start:</b> ${new Date(s.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                        <div><b>End:</b> ${new Date(s.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                    </td>
-                    <td><span class="badge badge-${s.status.toLowerCase()}">${s.status}</span></td>
-                    <td>
-                        ${isDoctor ? `
-                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                                ${s.status === 'SCHEDULED' ? `
-                                    <button onclick="updateOtStatus(${s.id}, 'IN_PROGRESS', ${admissionId})" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-amber);">
-                                        <i class="fa-solid fa-play"></i> Start
-                                    </button>
-                                    <button onclick="updateOtStatus(${s.id}, 'CANCELLED', ${admissionId})" class="btn btn-xs" style="background: rgba(244, 63, 94, 0.2); color: var(--accent-rose);">
-                                        <i class="fa-solid fa-ban"></i> Cancel
-                                    </button>
-                                ` : ''}
-                                ${s.status === 'IN_PROGRESS' ? `
-                                    <button onclick="completeSurgeryModal(${s.id}, ${admissionId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">
-                                        <i class="fa-solid fa-check"></i> Finish
-                                    </button>
-                                ` : ''}
-                                ${s.status === 'COMPLETED' ? `
-                                    <span style="color: var(--accent-green); font-size: 11px;"><i class="fa-solid fa-circle-check"></i> Done</span>
-                                ` : ''}
-                            </div>
-                        ` : `<span style="font-size: 11px; color: var(--text-muted);">${s.status}</span>`}
-                    </td>
-                </tr>
-            `).join('');
-        } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-rose); text-align: center;">Failed to fetch surgical records.</td></tr>`;
-        }
+            document.getElementById('ot-room-select').innerHTML = rooms && rooms.length > 0 ? rooms.map(r => `<option value="${r.id}">${r.roomNumber} (${r.roomType})</option>`).join('') : '<option value="">No rooms</option>';
+        } catch (e) {}
     }
 
     if (isAdmin) {
         document.getElementById('create-ot-room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const payload = {
-                roomNumber: document.getElementById('ot-room-number').value.trim(),
-                roomType: document.getElementById('ot-room-type').value.trim()
-            };
-            try {
-                await authFetch('/ot/rooms', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('OT Room registered successfully!', 'success');
-                document.getElementById('create-ot-room-form').reset();
-                loadOtRoomsDropdown();
-            } catch (err) {}
+            try { await authFetch('/ot/rooms', { method: 'POST', body: JSON.stringify({ roomNumber: document.getElementById('ot-room-number').value.trim(), roomType: document.getElementById('ot-room-type').value.trim() }) }); showToast('OT Room registered!', 'success'); loadOtRoomsDropdown(); } catch (err) {}
         });
     }
 
     if (isDoctor) {
         document.getElementById('schedule-surgery-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const admId = parseInt(document.getElementById('ot-admission-id').value);
-            const startTimeStr = document.getElementById('ot-start-time').value;
-            const endTimeStr = document.getElementById('ot-end-time').value;
-            const charge = parseFloat(document.getElementById('ot-charge').value);
-
-            if (charge <= 0 || isNaN(charge)) {
-                showToast('Procedure charge must be greater than zero.', 'error');
-                return;
-            }
-
-            if (new Date(startTimeStr) >= new Date(endTimeStr)) {
-                showToast('Surgery end time must be after start time.', 'error');
-                return;
-            }
-
-            const payload = {
-                otRoomId: parseInt(document.getElementById('ot-room-select').value),
-                admissionId: admId,
-                leadSurgeonId: parseInt(document.getElementById('ot-surgeon-id').value),
-                procedureName: document.getElementById('ot-procedure-name').value.trim(),
-                startTime: startTimeStr,
-                endTime: endTimeStr,
-                procedureCharge: charge
-            };
-
             try {
-                await authFetch('/ot/schedules', { method: 'POST', body: JSON.stringify(payload) });
-                showToast('Surgery scheduled successfully!', 'success');
-                document.getElementById('lookup-ot-adm-id').value = admId;
-                fetchOtSchedules(admId);
+                await authFetch('/ot/schedules', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        otRoomId: parseInt(document.getElementById('ot-room-select').value),
+                        admissionId: parseInt(document.getElementById('ot-admission-id').value),
+                        leadSurgeonId: parseInt(document.getElementById('ot-surgeon-id').value),
+                        procedureName: document.getElementById('ot-procedure-name').value.trim(),
+                        startTime: document.getElementById('ot-start-time').value,
+                        endTime: document.getElementById('ot-end-time').value,
+                        procedureCharge: parseFloat(document.getElementById('ot-charge').value)
+                    })
+                });
+                showToast('Surgery scheduled!', 'success');
+                document.getElementById('lookup-ot-adm-id').value = document.getElementById('ot-admission-id').value;
+                document.getElementById('fetch-ot-schedules-btn').click();
             } catch (err) {}
         });
     }
 
-    document.getElementById('fetch-ot-schedules-btn').addEventListener('click', () => {
-        const admId = document.getElementById('lookup-ot-adm-id').value.trim();
-        if (admId) fetchOtSchedules(parseInt(admId));
+    document.getElementById('fetch-ot-schedules-btn').addEventListener('click', async () => {
+        const admId = document.getElementById('lookup-ot-adm-id').value;
+        const tbody = document.getElementById('ot-schedules-table-body');
+        if(!admId) return;
+        try {
+            const schedules = await authFetch(`/ot/schedules/admission/${admId}`);
+            if (!schedules || schedules.length === 0) { tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px;">No surgeries found.</td></tr>`; return; }
+            tbody.innerHTML = schedules.map(s => `
+                <tr>
+                    <td><b>#${s.id}</b></td><td><span style="font-weight:600;">${s.roomNumber}</span></td>
+                    <td><span style="font-weight:600;">${s.procedureName}</span><div style="font-size:11px; color:var(--accent-primary);">₹${s.procedureCharge}</div></td>
+                    <td>Dr. #${s.leadSurgeonId}</td>
+                    <td><span class="badge badge-${s.status.toLowerCase()}">${s.status}</span></td>
+                    <td>
+                        ${isDoctor ? `
+                            <div style="display: flex; gap: 6px;">
+                                ${s.status === 'SCHEDULED' ? `<button onclick="updateOtStatus(${s.id}, 'IN_PROGRESS', ${admId})" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber);">Start</button>` : ''}
+                                ${s.status === 'IN_PROGRESS' ? `<button onclick="completeSurgeryModal(${s.id}, ${admId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">Finish</button>` : ''}
+                            </div>
+                        ` : ''}
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { tbody.innerHTML = `<tr><td colspan="6" style="color: var(--accent-rose); text-align: center;">Failed to load.</td></tr>`; }
     });
 
     loadOtRoomsDropdown();
 }
 
-window.updateOtStatus = async function(scheduleId, status, admissionId) {
-    try {
-        await authFetch(`/ot/schedules/${scheduleId}/status?status=${status}`, { method: 'PATCH' });
-        showToast(`Surgery status updated to ${status}`, 'success');
-        const admInput = document.getElementById('lookup-ot-adm-id');
-        if (admInput) {
-            admInput.value = admissionId;
-            document.getElementById('fetch-ot-schedules-btn').click();
-        }
-    } catch (err) {}
-};
-
-window.completeSurgeryModal = async function(scheduleId, admissionId) {
-    const notes = prompt("Enter post-op surgical notes & recovery summary:");
-    if (notes === null) return;
-    try {
-        await authFetch(`/ot/schedules/${scheduleId}/complete`, {
-            method: 'PATCH',
-            body: JSON.stringify({ surgicalNotes: notes || "Procedure completed successfully without complications." })
-        });
-        showToast('Surgery marked as completed!', 'success');
-        const admInput = document.getElementById('lookup-ot-adm-id');
-        if (admInput) {
-            admInput.value = admissionId;
-            document.getElementById('fetch-ot-schedules-btn').click();
-        }
-    } catch (err) {}
-};
+window.updateOtStatus = async function(id, status, admId) { try { await authFetch(`/ot/schedules/${id}/status?status=${status}`, { method: 'PATCH' }); document.getElementById('fetch-ot-schedules-btn').click(); } catch (err) {} };
+window.completeSurgeryModal = async function(id, admId) { try { await authFetch(`/ot/schedules/${id}/complete`, { method: 'PATCH', body: JSON.stringify({ surgicalNotes: "Completed without complications." }) }); document.getElementById('fetch-ot-schedules-btn').click(); } catch (err) {} };
 
 // ----------------------------------------------------
-// 7. Inpatient Billing & Live Razorpay Checkout View
+// 8. Inpatient Billing & Razorpay Checkout
 // ----------------------------------------------------
 async function renderBillingView(container) {
     const canSettle = state.role === 'ADMIN' || state.role === 'ACCOUNTANT';
-
     container.innerHTML = `
         <div class="view-grid-layout" style="${!canSettle ? 'grid-template-columns: 1fr;' : ''}">
             ${canSettle ? `
-            <div class="panel-column" style="display: flex; flex-direction: column; gap: 12px;">
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-calculator"></i> Aggregate & Generate Bill</h3>
-                    </div>
+            <div class="panel-column" style="display: flex; flex-direction: column; gap: 24px;">
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-calculator"></i> Aggregate & Generate Bill</h3></div>
                     <form id="generate-invoice-form">
-                        <div class="input-group">
-                            <label>Admission ID</label>
-                            <input type="number" id="bill-admission-id" min="1" required placeholder="Admission ID (e.g. 2)">
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-block">
-                            <i class="fa-solid fa-file-invoice"></i> Generate Inpatient Invoice
-                        </button>
+                        <div class="input-group"><label>Admission ID</label><input type="number" id="bill-admission-id" class="ui-input" required placeholder="Adm ID"></div>
+                        <button type="submit" class="btn btn-primary btn-block">Generate Invoice</button>
                     </form>
                 </div>
-
-                <div class="glass-card panel-card">
-                    <div class="panel-header">
-                        <h3><i class="fa-solid fa-money-bill-wave"></i> Offline Counter Settle</h3>
-                    </div>
+                <div class="ui-card panel-card">
+                    <div class="panel-header"><h3><i class="fa-solid fa-money-bill-wave"></i> Offline Settlement</h3></div>
                     <form id="settle-offline-form">
-                        <div class="input-group">
-                            <label>Invoice ID</label>
-                            <input type="number" id="offline-invoice-id" min="1" required placeholder="Invoice ID (e.g. 1)">
-                        </div>
-                        <div class="input-group">
-                            <label>Payment Mode</label>
-                            <select id="offline-payment-mode" required>
-                                <option value="CASH">CASH (Counter Settlement)</option>
-                                <option value="INSURANCE">INSURANCE (TPA Settlement)</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-block" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.4);">
-                            <i class="fa-solid fa-receipt"></i> Settle Bill
-                        </button>
+                        <div class="input-group"><label>Invoice ID</label><input type="number" id="offline-invoice-id" class="ui-input" required placeholder="Invoice ID"></div>
+                        <div class="input-group"><label>Payment Mode</label><select id="offline-payment-mode" class="ui-input" required><option value="CASH">CASH</option><option value="INSURANCE">INSURANCE</option></select></div>
+                        <button type="submit" class="btn btn-block" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3);">Settle Bill</button>
                     </form>
                 </div>
-            </div>
-            ` : ''}
+            </div>` : ''}
 
-            <div class="glass-card panel-card">
+            <div class="ui-card panel-card">
                 <div class="panel-header">
                     <h3><i class="fa-solid fa-file-invoice-dollar"></i> Inpatient Invoice Summary</h3>
-                    <div style="display: flex; gap: 6px;">
-                        <input type="number" id="lookup-bill-adm-id" min="1" placeholder="Adm ID (e.g. 2)" style="width: 120px; padding: 5px 8px; font-size: 11px; background: rgba(7,13,30,0.6); border: 1px solid var(--glass-border); color: var(--text-main); border-radius: 4px;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="lookup-bill-adm-id" class="ui-input" placeholder="Adm ID" style="width: 100px; padding: 6px 10px; height: 32px;">
                         <button id="fetch-invoice-btn" class="btn btn-xs btn-primary">Lookup</button>
                     </div>
                 </div>
-
-                <div id="invoice-display-container">
-                    <div style="text-align: center; color: var(--text-muted); padding: 30px;">
-                        <i class="fa-solid fa-receipt" style="font-size: 32px; margin-bottom: 10px; opacity: 0.5;"></i>
-                        <p>Generate an invoice or enter an Admission ID to view tariff summary.</p>
-                    </div>
-                </div>
+                <div id="invoice-display-container"><div style="text-align: center; color: var(--text-muted); padding: 40px;">Enter Admission ID to inspect charges.</div></div>
             </div>
         </div>
     `;
 
-    async function loadInvoiceData(admissionId) {
-        const container = document.getElementById('invoice-display-container');
-        container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 30px;"><i class="fa-solid fa-spinner fa-spin"></i> Aggregating charges...</div>`;
-        try {
-            const inv = await authFetch(`/billing/invoices/admission/${admissionId}`);
-            if (!inv) {
-                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 24px;">No invoice found for Admission #${admissionId}. Generate one using the left panel.</div>`;
-                return;
-            }
-
-            container.innerHTML = `
-                <div class="invoice-card">
-                    <div class="invoice-header-row">
-                        <div>
-                            <h3 style="font-size: 16px;">Invoice #${inv.id}</h3>
-                            <span style="font-size: 11px; color: var(--text-muted);">Admission Reference: #${inv.admissionId}</span>
-                        </div>
-                        <span class="badge ${inv.paymentStatus === 'PAID' ? 'badge-paid' : 'badge-unpaid'}">${inv.paymentStatus}</span>
-                    </div>
-
-                    <div class="tariff-breakdown">
-                        <div class="tariff-item">
-                            <span><i class="fa-solid fa-bed" style="width: 18px;"></i> Room / Bed Charges:</span>
-                            <b>₹${inv.roomCharges.toFixed(2)}</b>
-                        </div>
-                        <div class="tariff-item">
-                            <span><i class="fa-solid fa-flask-vial" style="width: 18px;"></i> Diagnostic Pathology / Lab:</span>
-                            <b>₹${inv.labCharges.toFixed(2)}</b>
-                        </div>
-                        <div class="tariff-item">
-                            <span><i class="fa-solid fa-pills" style="width: 18px;"></i> Pharmacy / MAR Medications:</span>
-                            <b>₹${inv.medicineCharges.toFixed(2)}</b>
-                        </div>
-                        <div class="tariff-item">
-                            <span><i class="fa-solid fa-syringe" style="width: 18px;"></i> OT & Surgical Procedures:</span>
-                            <b>₹${inv.otCharges.toFixed(2)}</b>
-                        </div>
-
-                        <div class="tariff-total-row">
-                            <span>Net Payable Amount:</span>
-                            <span>₹${inv.totalAmount.toFixed(2)}</span>
-                        </div>
-                    </div>
-
-                    ${inv.paymentStatus === 'PAID' ? `
-                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px; border-radius: var(--radius-sm); font-size: 11px; color: var(--accent-green);">
-                            <div><i class="fa-solid fa-check-circle"></i> <b>Settled via:</b> ${inv.paymentMode}</div>
-                            ${inv.razorpayPaymentId ? `<div><b>Payment Ref:</b> ${inv.razorpayPaymentId}</div>` : ''}
-                            <div><b>Settled At:</b> ${new Date(inv.settledAt).toLocaleString()}</div>
-                        </div>
-                    ` : `
-                        <div style="display: flex; gap: 10px; margin-top: 6px;">
-                            <button onclick="launchRazorpayCheckout(${inv.id}, ${inv.admissionId})" class="btn btn-primary btn-block">
-                                <i class="fa-solid fa-bolt"></i> Pay with Razorpay (UPI / Card)
-                            </button>
-                        </div>
-                    `}
-                </div>
-            `;
-        } catch (e) {
-            container.innerHTML = `<div style="color: var(--accent-rose); text-align: center; padding: 24px;">Error retrieving invoice records.</div>`;
-        }
-    }
-
     if (canSettle) {
         document.getElementById('generate-invoice-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const admId = parseInt(document.getElementById('bill-admission-id').value);
-            try {
-                await authFetch(`/billing/invoices/admission/${admId}/generate`, { method: 'POST' });
-                showToast(`Invoice generated for Admission #${admId}!`, 'success');
-                document.getElementById('lookup-bill-adm-id').value = admId;
-                loadInvoiceData(admId);
-            } catch (err) {}
+            const admId = document.getElementById('bill-admission-id').value;
+            try { await authFetch(`/billing/invoices/admission/${admId}/generate`, { method: 'POST' }); showToast('Invoice generated!', 'success'); document.getElementById('lookup-bill-adm-id').value = admId; document.getElementById('fetch-invoice-btn').click(); } catch (err) {}
         });
-
         document.getElementById('settle-offline-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const invId = parseInt(document.getElementById('offline-invoice-id').value);
-            const mode = document.getElementById('offline-payment-mode').value;
-            try {
-                await authFetch(`/billing/invoices/${invId}/settle-offline?mode=${mode}`, { method: 'PATCH' });
-                showToast(`Invoice #${invId} settled successfully via ${mode}!`, 'success');
-                const admId = document.getElementById('lookup-bill-adm-id').value;
-                if (admId) loadInvoiceData(parseInt(admId));
-            } catch (err) {}
+            try { await authFetch(`/billing/invoices/${document.getElementById('offline-invoice-id').value}/settle-offline?mode=${document.getElementById('offline-payment-mode').value}`, { method: 'PATCH' }); showToast('Invoice settled!', 'success'); document.getElementById('fetch-invoice-btn').click(); } catch (err) {}
         });
     }
 
-    document.getElementById('fetch-invoice-btn').addEventListener('click', () => {
-        const admId = document.getElementById('lookup-bill-adm-id').value.trim();
-        if (admId) loadInvoiceData(parseInt(admId));
+    document.getElementById('fetch-invoice-btn').addEventListener('click', async () => {
+        const admId = document.getElementById('lookup-bill-adm-id').value;
+        if(!admId) return;
+        const container = document.getElementById('invoice-display-container');
+        try {
+            const inv = await authFetch(`/billing/invoices/admission/${admId}`);
+            if (!inv) { container.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:24px;">No invoice found.</div>`; return; }
+            container.innerHTML = `
+                <div class="invoice-card">
+                    <div class="invoice-header-row">
+                        <div><h3 style="font-size: 18px; font-weight: 700;">Invoice #${inv.id}</h3><span style="font-size: 12px; color: var(--text-muted);">Adm Ref: #${inv.admissionId}</span></div>
+                        <span class="badge ${inv.paymentStatus === 'PAID' ? 'badge-paid' : 'badge-unpaid'}">${inv.paymentStatus}</span>
+                    </div>
+                    <div class="tariff-breakdown">
+                        <div class="tariff-item"><span><i class="fa-solid fa-bed" style="width: 20px; color: var(--accent-primary);"></i> Room / Bed:</span><b>₹${inv.roomCharges.toFixed(2)}</b></div>
+                        <div class="tariff-item"><span><i class="fa-solid fa-flask-vial" style="width: 20px; color: var(--accent-indigo);"></i> Pathology:</span><b>₹${inv.labCharges.toFixed(2)}</b></div>
+                        <div class="tariff-item"><span><i class="fa-solid fa-pills" style="width: 20px; color: var(--accent-amber);"></i> Pharmacy:</span><b>₹${inv.medicineCharges.toFixed(2)}</b></div>
+                        <div class="tariff-item"><span><i class="fa-solid fa-syringe" style="width: 20px; color: var(--accent-rose);"></i> Surgeries:</span><b>₹${inv.otCharges.toFixed(2)}</b></div>
+                        <div class="tariff-total-row"><span>Total Payable:</span><span>₹${inv.totalAmount.toFixed(2)}</span></div>
+                    </div>
+                    ${inv.paymentStatus === 'PAID' ? `
+                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 12px; border-radius: var(--radius-sm); font-size: 12px; color: var(--accent-green); margin-top: 8px;">
+                            <div><b>Settled via:</b> ${inv.paymentMode}</div>
+                        </div>
+                    ` : `<button onclick="launchRazorpayCheckout(${inv.id}, ${inv.admissionId})" class="btn btn-primary btn-block" style="margin-top: 12px;"><i class="fa-solid fa-bolt"></i> Pay with Razorpay</button>`}
+                </div>
+            `;
+        } catch (e) { container.innerHTML = `<div style="color:var(--accent-rose); text-align:center;">Error loading invoice.</div>`; }
     });
 }
 
-// Global Razorpay Checkout Trigger
-window.launchRazorpayCheckout = async function(invoiceId, admissionId) {
+window.launchRazorpayCheckout = async function(invoiceId, admId) {
     try {
         const orderData = await authFetch(`/billing/invoices/${invoiceId}/create-razorpay-order`, { method: 'POST' });
-
-        if (!orderData || !orderData.razorpayOrderId) {
-            throw new Error('Failed to initiate Razorpay order.');
-        }
-
         const options = {
             "key": orderData.razorpayKeyId,
             "amount": Math.round(orderData.amount * 100),
             "currency": orderData.currency,
             "name": "CarePulse Hospital",
-            "description": `Inpatient Settlement (Adm #${admissionId})`,
+            "description": `Inpatient Settlement (Adm #${admId})`,
             "order_id": orderData.razorpayOrderId,
             "handler": async function (response) {
                 try {
@@ -1471,38 +1041,14 @@ window.launchRazorpayCheckout = async function(invoiceId, admissionId) {
                         })
                     });
                     showToast('Payment verified and invoice settled!', 'success');
-                    loadView('billing');
-                    setTimeout(() => {
-                        const admInput = document.getElementById('lookup-bill-adm-id');
-                        if (admInput) {
-                            admInput.value = admissionId;
-                            document.getElementById('fetch-invoice-btn').click();
-                        }
-                    }, 300);
-                } catch (verifyErr) {
-                    showToast('Payment verification failed on server.', 'error');
-                }
+                    document.getElementById('fetch-invoice-btn').click();
+                } catch (verifyErr) { showToast('Verification failed.', 'error'); }
             },
-            "prefill": {
-                "name": state.username || "Patient Relative",
-                "email": "billing@carepulse.hospital"
-            },
-            "theme": { "color": "#38bdf8" }
+            "theme": { "color": "#3b82f6" }
         };
-
-        const rzp = new Razorpay(options);
-        rzp.open();
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
+        new Razorpay(options).open();
+    } catch (err) { showToast(err.message, 'error'); }
 };
 
-// Global Nav Listeners
-document.querySelectorAll('.nav-item').forEach(button => {
-    button.addEventListener('click', () => {
-        loadView(button.getAttribute('data-view'));
-    });
-});
-
-// Initialize on DOM Ready
+document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => loadView(btn.getAttribute('data-view'))));
 document.addEventListener('DOMContentLoaded', checkAuthState);
