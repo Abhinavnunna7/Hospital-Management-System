@@ -12,7 +12,6 @@
 
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-    <!-- Authentication Modal (Sign In / Register) -->
     <div id="login-modal" class="modal-overlay">
         <div class="ui-card login-card">
             <div class="brand-header">
@@ -23,13 +22,11 @@
                 <p class="brand-subtitle">Enterprise Clinical & Hospital System</p>
             </div>
 
-            <!-- Tab Switcher -->
             <div class="tab-switcher" role="tablist">
                 <button type="button" id="tab-login" role="tab" aria-selected="true" class="btn btn-xs active-tab">Sign In</button>
                 <button type="button" id="tab-register" role="tab" aria-selected="false" class="btn btn-xs inactive-tab">Register</button>
             </div>
 
-            <!-- Sign In Form -->
             <form id="login-form">
                 <div class="input-group">
                     <label for="login-username"><i class="fa-solid fa-user"></i> Username</label>
@@ -49,7 +46,6 @@
                 </button>
             </form>
 
-            <!-- Register Form -->
             <form id="register-form" class="hidden">
                 <div class="input-group">
                     <label for="reg-username"><i class="fa-solid fa-user"></i> Username</label>
@@ -96,12 +92,9 @@
         </div>
     </div>
 
-    <!-- Mobile Drawer Backdrop Overlay -->
     <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
 
-    <!-- Application Dashboard Shell -->
     <div id="app-container" class="app-layout hidden">
-        <!-- Sidebar Navigation -->
         <aside id="app-sidebar" class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-brand">
@@ -151,13 +144,12 @@
                         <span id="user-role-badge" class="badge badge-admin">ADMIN</span>
                     </div>
                 </div>
-                <button id="logout-btn" class="btn btn-xs btn-danger-subtle" title="Sign Out">
+                <button id="logout-btn" class="btn btn-xs btn-danger-subtle logout-trigger-btn" title="Sign Out">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
             </div>
         </aside>
 
-        <!-- Main Content Area -->
         <main class="main-wrapper">
             <header class="top-header">
                 <div class="header-left">
@@ -169,8 +161,15 @@
                         <span id="view-subtitle" class="view-subtitle">Live hospital status & telemetry</span>
                     </div>
                 </div>
-                <div class="system-status-chip">
-                    <span class="pulse-dot"></span> <span class="status-label">System Live (Port 8080)</span>
+                
+                <div class="header-right">
+                    <div class="system-status-chip">
+                        <span class="pulse-dot"></span> <span class="status-label">System Live (Port 8080)</span>
+                    </div>
+                    <button type="button" id="header-logout-btn" class="btn btn-xs btn-danger-subtle mobile-logout-btn logout-trigger-btn" title="Sign Out" aria-label="Sign Out">
+                        <i class="fa-solid fa-power-off"></i>
+                        <span class="mobile-logout-text">Sign Out</span>
+                    </button>
                 </div>
             </header>
 
