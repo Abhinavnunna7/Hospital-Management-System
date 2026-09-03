@@ -210,7 +210,7 @@ body {
     font-weight: 600;
 }
 
-/* Main Area */
+/* Main Area & Header */
 .main-wrapper {
     flex: 1;
     display: flex;
@@ -246,6 +246,16 @@ body {
     color: var(--text-muted);
     margin-top: 2px;
     display: block;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mobile-logout-btn {
+    display: none;
 }
 
 .system-status-chip {
@@ -629,6 +639,16 @@ body {
         display: inline-flex;
     }
 
+    .mobile-logout-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+    }
+
     .sidebar {
         position: fixed;
         left: -100%;
@@ -667,14 +687,19 @@ body {
     }
 }
 
-/* Small Screens (576px and below) */
+/* Extra Small Screens (576px and below) */
 @media (max-width: 576px) {
     .login-card {
         padding: 24px 18px;
     }
 
-    .status-label {
-        display: none; /* Icon pulse only to save header space */
+    .status-label,
+    .mobile-logout-text {
+        display: none; /* Keep clean icons on compact mobile views */
+    }
+
+    .mobile-logout-btn {
+        padding: 6px 8px;
     }
 
     .header-title h2 {
