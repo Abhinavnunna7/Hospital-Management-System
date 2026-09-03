@@ -10,36 +10,41 @@
 </head>
 <body>
 
-    <div id="toast-container" class="toast-container"></div>
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
     <!-- Authentication Modal (Sign In / Register) -->
     <div id="login-modal" class="modal-overlay">
         <div class="ui-card login-card">
-            <div class="brand-header" style="text-align: center; margin-bottom: 24px;">
-                <div style="font-size: 38px; color: var(--accent-primary); margin-bottom: 8px;">
+            <div class="brand-header">
+                <div class="brand-icon">
                     <i class="fa-solid fa-heart-pulse"></i>
                 </div>
                 <h2>CarePulse HMS</h2>
-                <p style="color: var(--text-muted); font-size: 13px; margin-top: 4px;">Enterprise Clinical & Hospital System</p>
+                <p class="brand-subtitle">Enterprise Clinical & Hospital System</p>
             </div>
 
             <!-- Tab Switcher -->
-            <div class="tab-switcher">
-                <button type="button" id="tab-login" class="btn btn-xs active-tab">Sign In</button>
-                <button type="button" id="tab-register" class="btn btn-xs inactive-tab">Register</button>
+            <div class="tab-switcher" role="tablist">
+                <button type="button" id="tab-login" role="tab" aria-selected="true" class="btn btn-xs active-tab">Sign In</button>
+                <button type="button" id="tab-register" role="tab" aria-selected="false" class="btn btn-xs inactive-tab">Register</button>
             </div>
 
             <!-- Sign In Form -->
             <form id="login-form">
                 <div class="input-group">
-                    <label><i class="fa-solid fa-user"></i> Username</label>
+                    <label for="login-username"><i class="fa-solid fa-user"></i> Username</label>
                     <input type="text" id="login-username" class="ui-input" required placeholder="Enter username" autocomplete="username">
                 </div>
                 <div class="input-group">
-                    <label><i class="fa-solid fa-lock"></i> Password</label>
-                    <input type="password" id="login-password" class="ui-input" required placeholder="••••••••" autocomplete="current-password">
+                    <label for="login-password"><i class="fa-solid fa-lock"></i> Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" class="ui-input" required placeholder="••••••••" autocomplete="current-password">
+                        <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" aria-pressed="false" data-target="login-password" tabindex="0">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">
+                <button type="submit" class="btn btn-primary btn-block mt-12">
                     <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Portal
                 </button>
             </form>
@@ -47,19 +52,34 @@
             <!-- Register Form -->
             <form id="register-form" class="hidden">
                 <div class="input-group">
-                    <label><i class="fa-solid fa-user"></i> Username</label>
-                    <input type="text" id="reg-username" class="ui-input" required placeholder="Choose username">
+                    <label for="reg-username"><i class="fa-solid fa-user"></i> Username</label>
+                    <input type="text" id="reg-username" class="ui-input" required placeholder="Choose username" autocomplete="username">
                 </div>
                 <div class="input-group">
-                    <label><i class="fa-solid fa-envelope"></i> Email</label>
-                    <input type="email" id="reg-email" class="ui-input" required placeholder="name@hospital.com">
+                    <label for="reg-email"><i class="fa-solid fa-envelope"></i> Email</label>
+                    <input type="email" id="reg-email" class="ui-input" required placeholder="name@hospital.com" autocomplete="email">
                 </div>
                 <div class="input-group">
-                    <label><i class="fa-solid fa-lock"></i> Password</label>
-                    <input type="password" id="reg-password" class="ui-input" required placeholder="Create strong password">
+                    <label for="reg-password"><i class="fa-solid fa-lock"></i> Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-password" class="ui-input" required minlength="8" placeholder="At least 8 characters" autocomplete="new-password">
+                        <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" aria-pressed="false" data-target="reg-password" tabindex="0">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="input-group">
-                    <label><i class="fa-solid fa-id-badge"></i> System Role</label>
+                    <label for="reg-confirm-password"><i class="fa-solid fa-shield-halved"></i> Confirm Password</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="reg-confirm-password" class="ui-input" required placeholder="Re-enter password" autocomplete="new-password">
+                        <button type="button" class="password-toggle-btn" aria-label="Toggle password visibility" aria-pressed="false" data-target="reg-confirm-password" tabindex="0">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <span id="password-match-error" class="input-error hidden">Passwords do not match</span>
+                </div>
+                <div class="input-group">
+                    <label for="reg-role"><i class="fa-solid fa-id-badge"></i> System Role</label>
                     <select id="reg-role" class="ui-input" required>
                         <option value="RECEPTIONIST">Receptionist</option>
                         <option value="DOCTOR">Doctor</option>
@@ -69,23 +89,31 @@
                         <option value="PATIENT">Patient (Self-Service)</option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">
+                <button type="submit" class="btn btn-primary btn-block mt-12">
                     <i class="fa-solid fa-user-plus"></i> Create Account
                 </button>
             </form>
         </div>
     </div>
 
+    <!-- Mobile Drawer Backdrop Overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+
     <!-- Application Dashboard Shell -->
     <div id="app-container" class="app-layout hidden">
         <!-- Sidebar Navigation -->
         <aside id="app-sidebar" class="sidebar">
-            <div class="sidebar-brand">
-                <i class="fa-solid fa-heart-pulse logo-icon"></i>
-                <div class="brand-text">
-                    <h3>CarePulse</h3>
-                    <span>HMS Enterprise</span>
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <i class="fa-solid fa-heart-pulse logo-icon"></i>
+                    <div class="brand-text">
+                        <h3>CarePulse</h3>
+                        <span>HMS Enterprise</span>
+                    </div>
                 </div>
+                <button type="button" id="sidebar-close-btn" class="sidebar-close-btn" aria-label="Close sidebar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
             <nav class="sidebar-nav">
@@ -129,17 +157,20 @@
             </div>
         </aside>
 
-        <!-- Main Wrapper -->
+        <!-- Main Content Area -->
         <main class="main-wrapper">
             <header class="top-header">
                 <div class="header-left">
+                    <button type="button" id="sidebar-toggle-btn" class="menu-toggle-btn" aria-label="Open sidebar">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
                     <div class="header-title">
                         <h2 id="view-title">Hospital Overview</h2>
                         <span id="view-subtitle" class="view-subtitle">Live hospital status & telemetry</span>
                     </div>
                 </div>
                 <div class="system-status-chip">
-                    <span class="pulse-dot"></span> System Live (Port 8080)
+                    <span class="pulse-dot"></span> <span class="status-label">System Live (Port 8080)</span>
                 </div>
             </header>
 
