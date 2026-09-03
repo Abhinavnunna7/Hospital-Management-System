@@ -8,6 +8,9 @@ const state = {
     currentView: 'dashboard'
 };
 
+// ----------------------------------------------------
+// Core HTTP & Toast Utilities
+// ----------------------------------------------------
 async function authFetch(endpoint, options = {}) {
     const headers = {
         'Content-Type': 'application/json',
@@ -44,7 +47,33 @@ function showToast(message, type = 'info') {
     toast.className = `toast toast-${type}`;
     toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info'}"></i> ${message}`;
     container.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 4000);
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        setTimeout(() => toast.remove(), 300); 
+    }, 4000);
+}
+
+// ----------------------------------------------------
+// Navigation & Responsive Drawer Logic
+// ----------------------------------------------------
+function closeMobileSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar && overlay) {
+        sidebar.classList.remove('open');
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+}
+
+function openMobileSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar && overlay) {
+        sidebar.classList.add('open');
+        overlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 function applyRoleBasedNavigation() {
@@ -90,29 +119,89 @@ function checkAuthState() {
     }
 }
 
-// Auth Tabs Switcher
+// ----------------------------------------------------
+// Authentication Form & Password Verification Handlers
+// ----------------------------------------------------
 const tabLogin = document.getElementById('tab-login');
 const tabRegister = document.getElementById('tab-register');
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
+const regPassword = document.getElementById('reg-password');
+const regConfirm = document.getElementById('reg-confirm-password');
+const matchError = document.getElementById('password-match-error');
 
 if (tabLogin && tabRegister) {
     tabLogin.addEventListener('click', () => {
-        tabLogin.classList.add('active-tab'); tabRegister.classList.remove('active-tab');
-        loginForm.classList.remove('hidden'); registerForm.classList.add('hidden');
+        tabLogin.classList.add('active-tab'); 
+        tabLogin.classList.remove('inactive-tab');
+        tabLogin.setAttribute('aria-selected', 'true');
+        tabRegister.classList.remove('active-tab'); 
+        tabRegister.classList.add('inactive-tab');
+        tabRegister.setAttribute('aria-selected', 'false');
+        loginForm.classList.remove('hidden'); 
+        registerForm.classList.add('hidden');
     });
+
     tabRegister.addEventListener('click', () => {
-        tabRegister.classList.add('active-tab'); tabLogin.classList.remove('active-tab');
-        registerForm.classList.remove('hidden'); loginForm.classList.add('hidden');
+        tabRegister.classList.add('active-tab'); 
+        tabRegister.classList.remove('inactive-tab');
+        tabRegister.setAttribute('aria-selected', 'true');
+        tabLogin.classList.remove('active-tab'); 
+        tabLogin.classList.add('inactive-tab');
+        tabLogin.setAttribute('aria-selected', 'false');
+        registerForm.classList.remove('hidden'); 
+        loginForm.classList.add('hidden');
     });
 }
+
+function checkPasswordMatch() {
+    if (!regPassword || !regConfirm) return true;
+    if (regConfirm.value.length > 0 && regPassword.value !== regConfirm.value) {
+        if (matchError) matchError.classList.remove('hidden');
+        regConfirm.classList.add('input-invalid');
+        return false;
+    } else {
+        if (matchError) matchError.classList.add('hidden');
+        regConfirm.classList.remove('input-invalid');
+        return true;
+    }
+}
+
+if (regPassword && regConfirm) {
+    regPassword.addEventListener('input', checkPasswordMatch);
+    regConfirm.addEventListener('input', checkPasswordMatch);
+}
+
+// Global Password Visibility Toggle (Delegated)
+document.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('.password-toggle-btn');
+    if (!toggleBtn) return;
+
+    const targetId = toggleBtn.getAttribute('data-target');
+    const targetInput = document.getElementById(targetId);
+    const icon = toggleBtn.querySelector('i');
+
+    if (!targetInput) return;
+
+    const isPassword = targetInput.type === 'password';
+    targetInput.type = isPassword ? 'text' : 'password';
+
+    toggleBtn.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+
+    if (icon) {
+        icon.classList.toggle('fa-eye', !isPassword);
+        icon.classList.toggle('fa-eye-slash', isPassword);
+    }
+});
 
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
             const res = await fetch(`${API_BASE_URL}/auth/login`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: document.getElementById('login-username').value.trim(),
                     password: document.getElementById('login-password').value
@@ -120,22 +209,33 @@ if (loginForm) {
             });
             if (!res.ok) throw new Error('Invalid credentials.');
             const data = await res.json();
-            state.token = data.token; state.username = data.username; state.role = data.role;
+            state.token = data.token; 
+            state.username = data.username; 
+            state.role = data.role;
             localStorage.setItem('token', data.token);
             localStorage.setItem('username', data.username);
             localStorage.setItem('role', data.role);
             showToast(`Signed in as ${data.username}`, 'success');
             checkAuthState();
-        } catch (err) { showToast(err.message, 'error'); }
+        } catch (err) { 
+            showToast(err.message, 'error'); 
+        }
     });
 }
 
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!checkPasswordMatch()) {
+            showToast('Passwords do not match.', 'error');
+            if (regConfirm) regConfirm.focus();
+            return;
+        }
+
         try {
             const res = await fetch(`${API_BASE_URL}/users`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: document.getElementById('reg-username').value.trim(),
                     email: document.getElementById('reg-email').value.trim(),
@@ -145,16 +245,33 @@ if (registerForm) {
             });
             if (!res.ok) throw new Error('Registration failed.');
             showToast('Account created. Please sign in.', 'success');
-            registerForm.reset(); tabLogin.click();
-        } catch (err) { showToast(err.message, 'error'); }
+            registerForm.reset(); 
+            if (tabLogin) tabLogin.click();
+        } catch (err) { 
+            showToast(err.message, 'error'); 
+        }
     });
 }
 
 function handleLogout() {
-    state.token = null; state.username = null; state.role = null; localStorage.clear(); checkAuthState();
+    state.token = null; 
+    state.username = null; 
+    state.role = null; 
+    localStorage.clear(); 
+    checkAuthState();
 }
 document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
+// Mobile Sidebar Controls
+const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
+const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+if (sidebarToggleBtn) sidebarToggleBtn.addEventListener('click', openMobileSidebar);
+if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeMobileSidebar);
+if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
+
+// View Switching
 function loadView(viewName) {
     state.currentView = viewName;
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -449,8 +566,7 @@ async function renderBedsView(container) {
                 <div class="bed-card ${b.status.toLowerCase()}">
                     <div class="bed-header"><span class="bed-title">${b.bedNumber}</span><span class="badge badge-nurse">${b.status}</span></div>
                     <div class="bed-ward">${b.wardName}</div>
-                    <div class="bed-price">₹${b.dailyRate} / day</div>
-                    ${(state.role === 'ADMIN' || state.role === 'NURSE') ? `<button onclick="toggleBedStatus(${b.id}, 'UNDER_MAINTENANCE')" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber); margin-top: 8px;">Maintenance</button>` : ''}
+                    <div class="bed-price">₹${b.dailyRate} / day</div>${(state.role === 'ADMIN' || state.role === 'NURSE') ? `<button onclick="toggleBedStatus(${b.id}, 'UNDER_MAINTENANCE')" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber); margin-top: 8px;">Maintenance</button>` : ''}
                 </div>
             `).join('');
         } catch (e) { grid.innerHTML = `<div style="color: var(--accent-rose);">Failed to load.</div>`; }
@@ -460,25 +576,47 @@ async function renderBedsView(container) {
         document.getElementById('create-ward-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             try {
-                await authFetch('/infrastructure/wards', { method: 'POST', body: JSON.stringify({ name: document.getElementById('ward-name').value.trim(), category: document.getElementById('ward-category').value, dailyRate: parseFloat(document.getElementById('ward-rate').value) }) });
-                showToast('Ward created!', 'success'); document.getElementById('create-ward-form').reset(); loadWardsDropdown();
+                await authFetch('/infrastructure/wards', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        name: document.getElementById('ward-name').value.trim(), 
+                        category: document.getElementById('ward-category').value, 
+                        dailyRate: parseFloat(document.getElementById('ward-rate').value) 
+                    }) 
+                });
+                showToast('Ward created!', 'success'); 
+                document.getElementById('create-ward-form').reset(); 
+                loadWardsDropdown();
             } catch (err) {}
         });
         document.getElementById('add-bed-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             try {
-                await authFetch('/infrastructure/beds', { method: 'POST', body: JSON.stringify({ wardId: parseInt(document.getElementById('bed-ward-select').value), bedNumber: document.getElementById('bed-number').value.trim() }) });
-                showToast('Bed added!', 'success'); document.getElementById('bed-number').value = ''; loadBedsGrid();
+                await authFetch('/infrastructure/beds', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        wardId: parseInt(document.getElementById('bed-ward-select').value), 
+                        bedNumber: document.getElementById('bed-number').value.trim() 
+                    }) 
+                });
+                showToast('Bed added!', 'success'); 
+                document.getElementById('bed-number').value = ''; 
+                loadBedsGrid();
             } catch (err) {}
         });
     }
 
     document.getElementById('refresh-beds-btn').addEventListener('click', loadBedsGrid);
-    loadWardsDropdown(); loadBedsGrid();
+    loadWardsDropdown(); 
+    loadBedsGrid();
 }
 
 window.toggleBedStatus = async function(bedId, status) {
-    try { await authFetch(`/infrastructure/beds/${bedId}/status?status=${status}`, { method: 'PATCH' }); showToast(`Bed status updated.`, 'success'); loadView('beds'); } catch (err) {}
+    try { 
+        await authFetch(`/infrastructure/beds/${bedId}/status?status=${status}`, { method: 'PATCH' }); 
+        showToast(`Bed status updated.`, 'success'); 
+        loadView('beds'); 
+    } catch (err) {}
 };
 
 // ----------------------------------------------------
@@ -533,7 +671,7 @@ async function renderAdmissionsView(container) {
         const select = document.getElementById('admit-bed-select');
         try {
             const beds = await authFetch('/infrastructure/beds/available');
-            select.innerHTML = beds && beds.length > 0 ? beds.map(b => `<option value="${b.id}">${b.bedNumber} — ${b.wardName}</option>`).join('') : `<option value="">No beds available.</option>`;
+            select.innerHTML = beds && beds.length > 0 ? beds.map(b => `<option value="${b.id}">${b.bedNumber} —${b.wardName}</option>`).join('') : `<option value="">No beds available.</option>`;
         } catch (e) { select.innerHTML = `<option value="">Error</option>`; }
     }
 
@@ -574,8 +712,12 @@ async function renderAdmissionsView(container) {
         });
     }
 
-    document.getElementById('refresh-admissions-btn').addEventListener('click', () => { loadAvailableBedsDropdown(); loadActiveAdmissionsTable(); });
-    loadAvailableBedsDropdown(); loadActiveAdmissionsTable();
+    document.getElementById('refresh-admissions-btn').addEventListener('click', () => { 
+        loadAvailableBedsDropdown(); 
+        loadActiveAdmissionsTable(); 
+    });
+    loadAvailableBedsDropdown(); 
+    loadActiveAdmissionsTable();
 }
 
 window.promptDischarge = async function(admissionId) {
@@ -672,7 +814,17 @@ async function renderLabView(container) {
     if (isAdmin) {
         document.getElementById('create-lab-test-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            try { await authFetch('/lab/tests', { method: 'POST', body: JSON.stringify({ testName: document.getElementById('test-name').value.trim(), price: parseFloat(document.getElementById('test-price').value) }) }); showToast('Test added!', 'success'); loadTestCatalogDropdown(); } catch (err) {}
+            try { 
+                await authFetch('/lab/tests', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        testName: document.getElementById('test-name').value.trim(), 
+                        price: parseFloat(document.getElementById('test-price').value) 
+                    }) 
+                }); 
+                showToast('Test added!', 'success'); 
+                loadTestCatalogDropdown(); 
+            } catch (err) {}
         });
     }
 
@@ -680,18 +832,40 @@ async function renderLabView(container) {
         document.getElementById('order-lab-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const admId = parseInt(document.getElementById('lab-order-admission-id').value);
-            try { await authFetch('/lab/orders', { method: 'POST', body: JSON.stringify({ admissionId: admId, doctorId: parseInt(document.getElementById('lab-order-doctor-id').value), testId: parseInt(document.getElementById('lab-test-select').value), priority: document.getElementById('lab-order-priority').value }) }); showToast('Order placed!', 'success'); fetchLabOrders(admId); } catch (err) {}
+            try { 
+                await authFetch('/lab/orders', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        admissionId: admId, 
+                        doctorId: parseInt(document.getElementById('lab-order-doctor-id').value), 
+                        testId: parseInt(document.getElementById('lab-test-select').value), 
+                        priority: document.getElementById('lab-order-priority').value 
+                    }) 
+                }); 
+                showToast('Order placed!', 'success'); 
+                fetchLabOrders(admId); 
+            } catch (err) {}
         });
     }
 
-    document.getElementById('fetch-lab-orders-btn').addEventListener('click', () => { const id = document.getElementById('lookup-lab-adm-id').value; if(id) fetchLabOrders(id); });
+    document.getElementById('fetch-lab-orders-btn').addEventListener('click', () => { 
+        const id = document.getElementById('lookup-lab-adm-id').value; 
+        if(id) fetchLabOrders(id); 
+    });
     loadTestCatalogDropdown();
 }
 
 window.publishLabResult = async function(orderId, admId) {
     const findings = prompt("Enter clinical pathology findings:");
     if (!findings) return;
-    try { await authFetch(`/lab/orders/${orderId}/results`, { method: 'PATCH', body: JSON.stringify({ resultFindings: findings }) }); showToast('Results published!', 'success'); document.getElementById('fetch-lab-orders-btn').click(); } catch (err) {}
+    try { 
+        await authFetch(`/lab/orders/${orderId}/results`, { 
+            method: 'PATCH', 
+            body: JSON.stringify({ resultFindings: findings }) 
+        }); 
+        showToast('Results published!', 'success'); 
+        document.getElementById('fetch-lab-orders-btn').click(); 
+    } catch (err) {}
 };
 
 // ----------------------------------------------------
@@ -807,7 +981,10 @@ async function renderMarView(container) {
 
 window.administerDose = async function(orderId, admId) {
     try {
-        await authFetch(`/mar/orders/${orderId}/administer`, { method: 'PATCH', body: JSON.stringify({ nurseId: 1, administrationNotes: "Administered as prescribed." }) });
+        await authFetch(`/mar/orders/${orderId}/administer`, { 
+            method: 'PATCH', 
+            body: JSON.stringify({ nurseId: 1, administrationNotes: "Administered as prescribed." }) 
+        });
         showToast('Dose administered!', 'success');
         document.getElementById('fetch-mar-btn').click();
     } catch (err) {}
@@ -879,7 +1056,17 @@ async function renderOtView(container) {
     if (isAdmin) {
         document.getElementById('create-ot-room-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            try { await authFetch('/ot/rooms', { method: 'POST', body: JSON.stringify({ roomNumber: document.getElementById('ot-room-number').value.trim(), roomType: document.getElementById('ot-room-type').value.trim() }) }); showToast('OT Room registered!', 'success'); loadOtRoomsDropdown(); } catch (err) {}
+            try { 
+                await authFetch('/ot/rooms', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        roomNumber: document.getElementById('ot-room-number').value.trim(), 
+                        roomType: document.getElementById('ot-room-type').value.trim() 
+                    }) 
+                }); 
+                showToast('OT Room registered!', 'success'); 
+                loadOtRoomsDropdown(); 
+            } catch (err) {}
         });
     }
 
@@ -922,8 +1109,8 @@ async function renderOtView(container) {
                     <td>
                         ${isDoctor ? `
                             <div style="display: flex; gap: 6px;">
-                                ${s.status === 'SCHEDULED' ? `<button onclick="updateOtStatus(${s.id}, 'IN_PROGRESS', ${admId})" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber);">Start</button>` : ''}
-                                ${s.status === 'IN_PROGRESS' ? `<button onclick="completeSurgeryModal(${s.id}, ${admId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">Finish</button>` : ''}
+                                ${s.status === 'SCHEDULED' ? `<button onclick="updateOtStatus(${s.id}, 'IN_PROGRESS',${admId})" class="btn btn-xs" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-amber);">Start</button>` : ''}
+                                ${s.status === 'IN_PROGRESS' ? `<button onclick="completeSurgeryModal(${s.id},${admId})" class="btn btn-xs" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-green);">Finish</button>` : ''}
                             </div>
                         ` : ''}
                     </td>
@@ -935,8 +1122,22 @@ async function renderOtView(container) {
     loadOtRoomsDropdown();
 }
 
-window.updateOtStatus = async function(id, status, admId) { try { await authFetch(`/ot/schedules/${id}/status?status=${status}`, { method: 'PATCH' }); document.getElementById('fetch-ot-schedules-btn').click(); } catch (err) {} };
-window.completeSurgeryModal = async function(id, admId) { try { await authFetch(`/ot/schedules/${id}/complete`, { method: 'PATCH', body: JSON.stringify({ surgicalNotes: "Completed without complications." }) }); document.getElementById('fetch-ot-schedules-btn').click(); } catch (err) {} };
+window.updateOtStatus = async function(id, status, admId) { 
+    try { 
+        await authFetch(`/ot/schedules/${id}/status?status=${status}`, { method: 'PATCH' }); 
+        document.getElementById('fetch-ot-schedules-btn').click(); 
+    } catch (err) {} 
+};
+
+window.completeSurgeryModal = async function(id, admId) { 
+    try { 
+        await authFetch(`/ot/schedules/${id}/complete`, { 
+            method: 'PATCH', 
+            body: JSON.stringify({ surgicalNotes: "Completed without complications." }) 
+        }); 
+        document.getElementById('fetch-ot-schedules-btn').click(); 
+    } catch (err) {} 
+};
 
 // ----------------------------------------------------
 // 8. Inpatient Billing & Razorpay Checkout
@@ -981,11 +1182,20 @@ async function renderBillingView(container) {
         document.getElementById('generate-invoice-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const admId = document.getElementById('bill-admission-id').value;
-            try { await authFetch(`/billing/invoices/admission/${admId}/generate`, { method: 'POST' }); showToast('Invoice generated!', 'success'); document.getElementById('lookup-bill-adm-id').value = admId; document.getElementById('fetch-invoice-btn').click(); } catch (err) {}
+            try { 
+                await authFetch(`/billing/invoices/admission/${admId}/generate`, { method: 'POST' }); 
+                showToast('Invoice generated!', 'success'); 
+                document.getElementById('lookup-bill-adm-id').value = admId; 
+                document.getElementById('fetch-invoice-btn').click(); 
+            } catch (err) {}
         });
         document.getElementById('settle-offline-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            try { await authFetch(`/billing/invoices/${document.getElementById('offline-invoice-id').value}/settle-offline?mode=${document.getElementById('offline-payment-mode').value}`, { method: 'PATCH' }); showToast('Invoice settled!', 'success'); document.getElementById('fetch-invoice-btn').click(); } catch (err) {}
+            try { 
+                await authFetch(`/billing/invoices/${document.getElementById('offline-invoice-id').value}/settle-offline?mode=${document.getElementById('offline-payment-mode').value}`, { method: 'PATCH' }); 
+                showToast('Invoice settled!', 'success'); 
+                document.getElementById('fetch-invoice-btn').click(); 
+            } catch (err) {}
         });
     }
 
@@ -1004,51 +1214,4 @@ async function renderBillingView(container) {
                     </div>
                     <div class="tariff-breakdown">
                         <div class="tariff-item"><span><i class="fa-solid fa-bed" style="width: 20px; color: var(--accent-primary);"></i> Room / Bed:</span><b>₹${inv.roomCharges.toFixed(2)}</b></div>
-                        <div class="tariff-item"><span><i class="fa-solid fa-flask-vial" style="width: 20px; color: var(--accent-indigo);"></i> Pathology:</span><b>₹${inv.labCharges.toFixed(2)}</b></div>
-                        <div class="tariff-item"><span><i class="fa-solid fa-pills" style="width: 20px; color: var(--accent-amber);"></i> Pharmacy:</span><b>₹${inv.medicineCharges.toFixed(2)}</b></div>
-                        <div class="tariff-item"><span><i class="fa-solid fa-syringe" style="width: 20px; color: var(--accent-rose);"></i> Surgeries:</span><b>₹${inv.otCharges.toFixed(2)}</b></div>
-                        <div class="tariff-total-row"><span>Total Payable:</span><span>₹${inv.totalAmount.toFixed(2)}</span></div>
-                    </div>
-                    ${inv.paymentStatus === 'PAID' ? `
-                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); padding: 12px; border-radius: var(--radius-sm); font-size: 12px; color: var(--accent-green); margin-top: 8px;">
-                            <div><b>Settled via:</b> ${inv.paymentMode}</div>
-                        </div>
-                    ` : `<button onclick="launchRazorpayCheckout(${inv.id}, ${inv.admissionId})" class="btn btn-primary btn-block" style="margin-top: 12px;"><i class="fa-solid fa-bolt"></i> Pay with Razorpay</button>`}
-                </div>
-            `;
-        } catch (e) { container.innerHTML = `<div style="color:var(--accent-rose); text-align:center;">Error loading invoice.</div>`; }
-    });
-}
-
-window.launchRazorpayCheckout = async function(invoiceId, admId) {
-    try {
-        const orderData = await authFetch(`/billing/invoices/${invoiceId}/create-razorpay-order`, { method: 'POST' });
-        const options = {
-            "key": orderData.razorpayKeyId,
-            "amount": Math.round(orderData.amount * 100),
-            "currency": orderData.currency,
-            "name": "CarePulse Hospital",
-            "description": `Inpatient Settlement (Adm #${admId})`,
-            "order_id": orderData.razorpayOrderId,
-            "handler": async function (response) {
-                try {
-                    await authFetch(`/billing/invoices/${invoiceId}/verify-payment`, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            razorpayOrderId: response.razorpay_order_id,
-                            razorpayPaymentId: response.razorpay_payment_id,
-                            razorpaySignature: response.razorpay_signature
-                        })
-                    });
-                    showToast('Payment verified and invoice settled!', 'success');
-                    document.getElementById('fetch-invoice-btn').click();
-                } catch (verifyErr) { showToast('Verification failed.', 'error'); }
-            },
-            "theme": { "color": "#3b82f6" }
-        };
-        new Razorpay(options).open();
-    } catch (err) { showToast(err.message, 'error'); }
-};
-
-document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => loadView(btn.getAttribute('data-view'))));
-document.addEventListener('DOMContentLoaded', checkAuthState);
+                        <div class="tariff-item"><span><i class="fa-solid fa-flask-vial" style="width: 20px; color: var(--accent-indigo);"></i> Pathology:</span><b>₹${inv
