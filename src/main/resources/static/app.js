@@ -311,7 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. Layout & Navigation Event Listeners
     const logoutBtn = document.getElementById('logout-btn');
+    const headerLogoutBtn = document.getElementById('header-logout-btn');
+
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (headerLogoutBtn) headerLogoutBtn.addEventListener('click', handleLogout);
 
     const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
     const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
